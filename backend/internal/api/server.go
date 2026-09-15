@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Package api implements InfraCity's REST + WebSocket API surface.
 package api
 

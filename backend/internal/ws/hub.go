@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Package ws implements the WebSocket fan-out hub for live telemetry.
 //
 // One hub, many subscribers. Ingest/API publish model.Event values;

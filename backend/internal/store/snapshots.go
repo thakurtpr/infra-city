@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Package store keeps ring-buffer snapshots for Time Travel + incident replay.
 package store
 

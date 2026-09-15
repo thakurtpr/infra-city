@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Command infracity-agent runs as a DaemonSet: discovers local Kubernetes state,
 // samples network flows (eBPF when privileged, /proc fallback otherwise) and
 // ships normalized AgentReports to the backend.

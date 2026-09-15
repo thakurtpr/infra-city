@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Package exporter ships AgentReports to the backend with TLS, auth,
 // retries (exponential backoff + jitter), batching and drop-counters
 // (backpressure: bounded queue, oldest batches dropped first, counted).

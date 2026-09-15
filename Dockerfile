@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1
+# SPDX-License-Identifier: Apache-2.0
 FROM golang:1.23-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum* ./

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Package analysis implements dependency inference, incident detection,
 // blast-radius / risk scoring and the "why is this slow?" explainer.
 //

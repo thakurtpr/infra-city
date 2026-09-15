@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Package topology owns demo seeding + live demo traffic synthesis.
 // Production topology comes from agents via /api/v1/ingest; this package keeps
 // `make dev` and `make demo` alive with zero cluster required.

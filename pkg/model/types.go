@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Package model defines the normalized InfraCity data model.
 // Every infrastructure object is a Node; every relationship/traffic is an Edge.
 // This is the single source of truth shared by agent, backend and frontend.

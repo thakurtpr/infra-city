@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Package discovery polls the Kubernetes API and normalizes resources into
 // model.Nodes/Edges. Least-privilege RBAC: see helm/infracity/templates/rbac.yaml.
 // Secret VALUES are never read — only metadata (name/namespace/keys count).

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Package graph implements InfraCity's in-memory infrastructure graph engine.
 //
 // Design notes:

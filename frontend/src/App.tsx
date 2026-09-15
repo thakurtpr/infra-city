@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import CityScene, { CityMode } from './three/CityScene';
 import { api, connectEvents, Edge, Node } from './api/client';

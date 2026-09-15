@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 # Least-privilege RBAC. The agent NEVER reads secret values — only metadata.
 apiVersion: v1
 kind: ServiceAccount

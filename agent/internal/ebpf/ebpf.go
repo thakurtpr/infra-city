@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Package ebpf is the Go loader interface for InfraCity's eBPF probes.
 //
 // C sources live in ebpf/ (sock-trace.bpf.c). This package exposes a stable Go

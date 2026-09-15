@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 # Default values — tune per environment. RBAC is least-privilege by default.
 clusterId: production
 backend:

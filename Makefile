@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 .PHONY: dev demo backend frontend agent test lint build docker helm chaos-latency chaos-errors kill-pod scale-api
 
 BACKEND_ADDR ?= :8080

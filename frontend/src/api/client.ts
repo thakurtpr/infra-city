@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Typed client for the InfraCity backend (REST + WS with reconnect).
 export interface Node {
   id: string; type: string; cluster: string; namespace?: string; name: string;

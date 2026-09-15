@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Command infracity-backend serves the control plane: ingestion, topology/graph,
 // REST + WebSocket API, snapshots (time travel) and self-metrics.
 package main

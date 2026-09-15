@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Package netmon observes L4 connections from the host network namespace.
 //
 // Strategy (portable first, privileged second):

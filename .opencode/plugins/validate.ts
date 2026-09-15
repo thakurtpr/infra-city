@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 /**
  * validate.ts — InfraCity guardrail plugin (OpenCode pre/post tool hooks).
  *
