@@ -27,8 +27,8 @@ func SeedDemo(g *graph.Graph) {
 			Status: status, CreatedAt: now, UpdatedAt: now, Metrics: m,
 			Labels: map[string]string{
 				"infracity.io/environment": "production",
-				"infracity.io/region":       "us-west-2",
-				"infracity.io/provider":     "aws",
+				"infracity.io/region":      "us-west-2",
+				"infracity.io/provider":    "aws",
 			}, Metadata: extra,
 		})
 	}

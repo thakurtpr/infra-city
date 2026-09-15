@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: Apache-2.0
+name: e2e-kind
+# Full loop: build images → kind → demo town → helm install → API assertions.
+on:
+  push: { branches: [main] }
+  workflow_dispatch: {}
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: helm/kind-action@v1.12.0
+        with: { cluster_name: infracity, kubectl_version: v1.31.0 }
+      - uses: azure/setup-helm@v4
+      - name: Build images
+        run: |
+          docker build -t infracity/backend:e2e -f Dockerfile --target backend .
+          docker build -t infracity/agent:e2e -f Dockerfile --target agent .
+          docker build -t infracity/frontend:e2e -f Dockerfile.frontend .
+      - name: Load into kind
+        run: kind load docker-image infracity/backend:e2e infracity/agent:e2e infracity/frontend:e2e --name infracity
+      - name: Demo town + traffic
+        run: |
+          kubectl apply -f demo/manifests/
+          kubectl apply -f demo/traffic-generator.yaml
+          kubectl wait --for=condition=Available deploy/frontend deploy/api deploy/payments -n demo --timeout=180s
+      - name: Helm install
+        run: |
+          helm install infracity helm/infracity --set clusterId=kind-ci \
+            --set backend.image=infracity/backend:e2e \
+            --set agent.image=infracity/agent:e2e \
+            --set frontend.image=infracity/frontend:e2e --wait --timeout 3m
+      - name: Assert live discovery
+        run: |
+          kubectl wait --for=condition=Ready pod -l app=infracity-backend --timeout=120s
+          sleep 30  # two agent cycles
+          kubectl port-forward svc/infracity-backend 8080:8080 & sleep 5
+          test "$(curl -s localhost:8080/health | python3 -c 'import json,sys; print(json.load(sys.stdin)["status"])')" = "ok"
+          curl -s "localhost:8080/api/graph?cluster=kind-ci" | python3 -c "
+          import json,sys
+          d = json.load(sys.stdin)
+          assert len(d['nodes']) > 20, d
+          types = {n['type'] for n in d['nodes']}
+          assert {'pod','service','deployment'} <= types, types
+          print('e2e graph OK:', len(d['nodes']), 'nodes,', len(d['edges']), 'edges')"
+          curl -s -o /dev/null -w "backend %{http_code}\n" localhost:8080/api/clusters

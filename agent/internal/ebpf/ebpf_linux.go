@@ -30,7 +30,7 @@ func newTracer() Tracer {
 	return &linuxTracer{enabled: false, reason: "eBPF objects not compiled in this build (see ebpf/README.md); using /proc fallback with identical edge schema"}
 }
 
-func (t *linuxTracer) Enabled() bool { return t.enabled }
+func (t *linuxTracer) Enabled() bool  { return t.enabled }
 func (t *linuxTracer) Reason() string { return t.reason }
 func (t *linuxTracer) Sample() ([]netmon.Flow, error) {
 	return netmon.SampleProcNet()

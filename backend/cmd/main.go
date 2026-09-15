@@ -18,8 +18,8 @@ import (
 	"github.com/infracity/infracity/backend/internal/api"
 	"github.com/infracity/infracity/backend/internal/graph"
 	"github.com/infracity/infracity/backend/internal/store"
-	"github.com/infracity/infracity/backend/internal/ws"
 	"github.com/infracity/infracity/backend/internal/topology"
+	"github.com/infracity/infracity/backend/internal/ws"
 )
 
 func main() {

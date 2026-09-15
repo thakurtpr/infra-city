@@ -259,9 +259,9 @@ func (s *Server) getPath(w http.ResponseWriter, r *http.Request) {
 	}
 	// enrich hops with latency/bytes
 	type hop struct {
-		NodeID string       `json:"nodeId"`
-		Node   *model.Node  `json:"node,omitempty"`
-		Edge   *model.Edge  `json:"edge,omitempty"`
+		NodeID string      `json:"nodeId"`
+		Node   *model.Node `json:"node,omitempty"`
+		Edge   *model.Edge `json:"edge,omitempty"`
 	}
 	hops := make([]hop, 0, len(path))
 	for i, id := range path {

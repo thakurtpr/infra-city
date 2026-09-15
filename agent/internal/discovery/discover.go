@@ -42,7 +42,7 @@ func (d *Discoverer) Snapshot(ctx context.Context) ([]model.Node, []model.Edge, 
 	}
 
 	nodes = append(nodes, model.Node{
-		ID: model.IDFor(model.TypeCluster, d.clusterID, "", d.clusterID),
+		ID:   model.IDFor(model.TypeCluster, d.clusterID, "", d.clusterID),
 		Type: model.TypeCluster, Cluster: d.clusterID, Name: d.clusterID,
 		Status: "running", UpdatedAt: now, CreatedAt: now,
 	})
@@ -64,15 +64,15 @@ func (d *Discoverer) Snapshot(ctx context.Context) ([]model.Node, []model.Edge, 
 			}
 		}
 		add(model.Node{
-			ID: model.IDFor(model.TypeNode, d.clusterID, "", n.Name),
+			ID:   model.IDFor(model.TypeNode, d.clusterID, "", n.Name),
 			Type: model.TypeNode, Name: n.Name, Status: status,
 			Labels: n.Labels, Version: n.Status.NodeInfo.KubeletVersion,
 			Metadata: map[string]string{"os": n.Status.NodeInfo.OSImage, "arch": n.Status.NodeInfo.Architecture},
 		})
 		edges = append(edges, model.Edge{
-			Source: model.IDFor(model.TypeCluster, d.clusterID, "", d.clusterID),
+			Source:      model.IDFor(model.TypeCluster, d.clusterID, "", d.clusterID),
 			Destination: model.IDFor(model.TypeNode, d.clusterID, "", n.Name),
-			Type: model.EdgeOwns, UpdatedAt: now,
+			Type:        model.EdgeOwns, UpdatedAt: now,
 		})
 	}
 
@@ -83,7 +83,7 @@ func (d *Discoverer) Snapshot(ctx context.Context) ([]model.Node, []model.Edge, 
 	}
 	for _, ns := range nsList.Items {
 		add(model.Node{
-			ID: model.IDFor(model.TypeNamespace, d.clusterID, ns.Name, ns.Name),
+			ID:   model.IDFor(model.TypeNamespace, d.clusterID, ns.Name, ns.Name),
 			Type: model.TypeNamespace, Namespace: ns.Name, Name: ns.Name,
 			Status: string(ns.Status.Phase), Labels: ns.Labels,
 		})
@@ -108,7 +108,7 @@ func (d *Discoverer) Snapshot(ctx context.Context) ([]model.Node, []model.Edge, 
 		add(model.Node{
 			ID: podID, Type: model.TypePod, Namespace: p.Namespace, Name: p.Name,
 			Status: phase, Labels: p.Labels, NodeName: p.Spec.NodeName, IP: p.Status.PodIP,
-			Owner: ownerRef(p.OwnerReferences),
+			Owner:   ownerRef(p.OwnerReferences),
 			Metrics: &model.Metrics{Restarts: restarts},
 		})
 		if p.Spec.NodeName != "" {

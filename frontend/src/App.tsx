@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import CityScene, { CityMode } from './three/CityScene';
 import { api, connectEvents, Edge, Node } from './api/client';
+import { fmtK } from './utils/format';
 
 export default function App() {
   const [nodes, setNodes] = useState<Node[]>([]);
@@ -86,9 +87,9 @@ export default function App() {
       {/* command center */}
       <div style={panel}>
         <div style={h}>COMMAND CENTER</div>
-        <Stat label="req/s" value={metrics.requestsPerSec > 0 ? fmt(metrics.requestsPerSec) : '— L4 only'} />
+        <Stat label="req/s" value={metrics.requestsPerSec > 0 ? fmtK(metrics.requestsPerSec) : '— L4 only'} />
         <Stat label="error" value={metrics.requestsPerSec > 0 ? (metrics.errorRate * 100).toFixed(2) + '%' : '—'} alert={metrics.errorRate > 0.02} />
-        <Stat label="p95" value={metrics.p95LatencyMs > 0 ? fmt(metrics.p95LatencyMs) + 'ms' : '—'} alert={metrics.p95LatencyMs > 500} />
+        <Stat label="p95" value={metrics.p95LatencyMs > 0 ? fmtK(metrics.p95LatencyMs) + 'ms' : '—'} alert={metrics.p95LatencyMs > 500} />
         <Stat label="pods" value={String(metrics.pods)} />
         <Stat label="services" value={String(metrics.services)} />
         <Stat label="flows" value={String(metrics.flows)} />
@@ -113,9 +114,9 @@ export default function App() {
               <tbody>
                 <Row k="CPU" v={(selNode.metrics.cpuPct ?? 0).toFixed(0) + '%'} />
                 <Row k="MEM" v={(selNode.metrics.memPct ?? 0).toFixed(0) + '%'} />
-                <Row k="req/s" v={fmt(selNode.metrics.reqPerSec ?? 0)} />
+                <Row k="req/s" v={fmtK(selNode.metrics.reqPerSec ?? 0)} />
                 <Row k="err" v={((selNode.metrics.errRate ?? 0) * 100).toFixed(2) + '%'} />
-                <Row k="p95" v={fmt(selNode.metrics.latencyMsP95 ?? 0) + 'ms'} />
+                <Row k="p95" v={fmtK(selNode.metrics.latencyMsP95 ?? 0) + 'ms'} />
                 {selNode.metrics.replicas ? <Row k="replicas" v={`${selNode.metrics.readyReplicas}/${selNode.metrics.replicas}`} /> : null}
               </tbody>
             </table>
@@ -132,7 +133,6 @@ export default function App() {
   );
 }
 
-const fmt = (n: number) => n >= 1000 ? (n / 1000).toFixed(1) + 'k' : n.toFixed(0);
 const Stat = ({ label, value, alert }: { label: string; value: string; alert?: boolean }) => (
   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
     <span style={{ opacity: 0.65 }}>{label}</span>

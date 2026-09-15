@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: Apache-2.0
+name: ci
+on:
+  push: { branches: [main] }
+  pull_request: { branches: [main] }
+
+jobs:
+  dco:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Require Signed-off-by on all commits in range
+        run: |
+          base="${{ github.event.pull_request.base.sha || github.event.before }}"
+          for c in $(git rev-list "$base"..HEAD); do
+            git log -1 --format=%B "$c" | grep -q "^Signed-off-by: " \
+              || { echo "Missing Signed-off-by in $c"; exit 1; }
+          done
+
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.26", cache: true }
+      - run: gofmt -l . | grep . && exit 1 || echo "gofmt clean"
+      - run: go vet ./...
+      - run: go test ./...
+      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  licenses:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.26", cache: true }
+      - name: Forbid copyleft/non-allowlist Go licenses
+        run: |
+          go run github.com/google/go-licenses@latest report ./... \
+            | grep -iE "GPL|AGPL|LGPL|BSL|SSPL|CC-BY-NC|WTFPL|Unlicense" \
+            && { echo "FORBIDDEN LICENSE FOUND"; exit 1; } || echo "Go licenses clean"
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: frontend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test -- --run
+      - run: npm run build
+
+  manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - run: helm lint helm/infracity
+      - run: helm template infracity helm/infracity --set clusterId=ci > /tmp/rendered.yaml
+      - name: kubeconform rendered chart + demo manifests
+        run: |
+          docker run --rm -v "$PWD:/w" -v /tmp:/tmp ghcr.io/yannh/kubeconform:latest \
+            -kubernetes-version 1.31.0 /tmp/rendered.yaml /w/demo/manifests /w/demo/traffic-generator.yaml
+      - run: kubectl apply --dry-run=client -f /tmp/rendered.yaml 2>/dev/null || echo "(no cluster: template render check passed)"

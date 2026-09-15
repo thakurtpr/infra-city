@@ -6,6 +6,7 @@
 //     process/container/pod attribution. Best fidelity, needs privileges.
 //  2. Fallback: /proc/net/tcp{,6} + /proc/<pid>/fd socket inode mapping +
 //     conntrack-style byte counters from /proc/<pid>/net. Works unprivileged.
+//
 // The agent reports whichever source is available and marks EBPFEnabled.
 package netmon
 
@@ -22,12 +23,12 @@ import (
 
 // Flow is one observed directed connection sample.
 type Flow struct {
-	SrcIP, DstIP       string
-	SrcPort, DstPort   int
-	Protocol           string
-	BytesTx, BytesRx   int64
-	Connections        int64
-	Process            string
+	SrcIP, DstIP     string
+	SrcPort, DstPort int
+	Protocol         string
+	BytesTx, BytesRx int64
+	Connections      int64
+	Process          string
 }
 
 // SampleProcNet parses /proc/net/tcp for established connections.
@@ -82,7 +83,7 @@ func ToEdges(flows []Flow, ipToPod map[string]string, cluster string) []model.Ed
 		e, ok := agg[key]
 		if !ok {
 			e = &model.Edge{
-				ID: fmt.Sprintf("%s|network|%s:%d", src, dst, fl.DstPort),
+				ID:     fmt.Sprintf("%s|network|%s:%d", src, dst, fl.DstPort),
 				Source: src, Destination: dst, Type: model.EdgeNetwork,
 				Protocol: fl.Protocol, DstPort: fl.DstPort, UpdatedAt: now,
 			}

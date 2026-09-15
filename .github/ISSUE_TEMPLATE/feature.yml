@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Feature request
+description: Propose an InfraCity capability
+labels: [enhancement]
+body:
+  - type: textarea
+    attributes:
+      label: Problem
+      description: What operational question can't you answer today?
+    validations: { required: true }
+  - type: textarea
+    attributes:
+      label: Proposal
+      description: Which layer changes (agent / backend / frontend / helm), and what new telemetry if any?
+  - type: checkboxes
+    attributes:
+      label: Data honesty
+      description: InfraCity never invents telemetry — every visual must trace to collected data.
+      options:
+        - label: I can name the data source (K8s API / eBPF / /proc / OTel / cloud API) for this feature
+          required: true

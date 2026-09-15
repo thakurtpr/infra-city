@@ -34,13 +34,13 @@ const (
 
 // Edge types.
 const (
-	EdgeOwns    = "owns"     // cluster->node, ns->deployment, deploy->pod ...
-	EdgeTargets = "targets"  // service -> pod (selector/endpointslice)
-	EdgeRoutes  = "routes"   // ingress/gateway -> service
-	EdgeRunsOn  = "runs_on"  // pod -> node
-	EdgeNetwork = "network"  // observed L4/L7 traffic
-	EdgeDepends = "depends"  // inferred dependency (from traffic)
-	EdgeMounts  = "mounts"   // pod -> configmap/secret/pvc
+	EdgeOwns    = "owns"    // cluster->node, ns->deployment, deploy->pod ...
+	EdgeTargets = "targets" // service -> pod (selector/endpointslice)
+	EdgeRoutes  = "routes"  // ingress/gateway -> service
+	EdgeRunsOn  = "runs_on" // pod -> node
+	EdgeNetwork = "network" // observed L4/L7 traffic
+	EdgeDepends = "depends" // inferred dependency (from traffic)
+	EdgeMounts  = "mounts"  // pod -> configmap/secret/pvc
 )
 
 // Node is any infrastructure object with a globally unique ID:
@@ -86,31 +86,31 @@ type Metrics struct {
 
 // Edge is a directed relationship or observed flow between two nodes.
 type Edge struct {
-	ID              string    `json:"id"`
-	Source          string    `json:"source"`
-	Destination     string    `json:"destination"`
-	Type            string    `json:"type"`
-	Protocol        string    `json:"protocol,omitempty"` // TCP/UDP/HTTP/gRPC/...
-	SrcPort         int       `json:"srcPort,omitempty"`
-	DstPort         int       `json:"dstPort,omitempty"`
-	RequestsPerSec  float64   `json:"requestsPerSec,omitempty"`
-	LatencyMs       float64   `json:"latencyMs,omitempty"`
-	BytesPerSec     float64   `json:"bytesPerSec,omitempty"`
-	ErrorsPerSec    float64   `json:"errorsPerSec,omitempty"`
-	Connections     int64     `json:"connections,omitempty"`
-	Confidence      float64   `json:"confidence,omitempty"` // dependency inference 0..1
-	Allowed         *bool     `json:"allowed,omitempty"`    // security mode: nil=unknown
-	UpdatedAt       time.Time `json:"updatedAt,omitempty"`
+	ID             string    `json:"id"`
+	Source         string    `json:"source"`
+	Destination    string    `json:"destination"`
+	Type           string    `json:"type"`
+	Protocol       string    `json:"protocol,omitempty"` // TCP/UDP/HTTP/gRPC/...
+	SrcPort        int       `json:"srcPort,omitempty"`
+	DstPort        int       `json:"dstPort,omitempty"`
+	RequestsPerSec float64   `json:"requestsPerSec,omitempty"`
+	LatencyMs      float64   `json:"latencyMs,omitempty"`
+	BytesPerSec    float64   `json:"bytesPerSec,omitempty"`
+	ErrorsPerSec   float64   `json:"errorsPerSec,omitempty"`
+	Connections    int64     `json:"connections,omitempty"`
+	Confidence     float64   `json:"confidence,omitempty"` // dependency inference 0..1
+	Allowed        *bool     `json:"allowed,omitempty"`    // security mode: nil=unknown
+	UpdatedAt      time.Time `json:"updatedAt,omitempty"`
 }
 
 // Event is a discrete occurrence streamed over the WebSocket API.
 type Event struct {
-	Type      string         `json:"type"` // RESOURCE_CREATED|UPDATED|DELETED|NETWORK_FLOW|METRIC_UPDATE|...
-	Resource  *Node          `json:"resource,omitempty"`
-	Edge      *Edge          `json:"edge,omitempty"`
-	Message   string         `json:"message,omitempty"`
-	Severity  string         `json:"severity,omitempty"` // info|warn|critical
-	Timestamp time.Time      `json:"timestamp"`
+	Type      string            `json:"type"` // RESOURCE_CREATED|UPDATED|DELETED|NETWORK_FLOW|METRIC_UPDATE|...
+	Resource  *Node             `json:"resource,omitempty"`
+	Edge      *Edge             `json:"edge,omitempty"`
+	Message   string            `json:"message,omitempty"`
+	Severity  string            `json:"severity,omitempty"` // info|warn|critical
+	Timestamp time.Time         `json:"timestamp"`
 	Labels    map[string]string `json:"labels,omitempty"`
 }
 
@@ -141,12 +141,12 @@ type Snapshot struct {
 
 // AgentReport is what each DaemonSet agent POSTs to /api/v1/ingest.
 type AgentReport struct {
-	ClusterID string  `json:"clusterId"`
-	NodeName  string  `json:"nodeName"`
-	Timestamp int64   `json:"timestamp"` // unix nano
-	Nodes     []Node  `json:"nodes"`
-	Edges     []Edge  `json:"edges"`
-	Events    []Event `json:"events,omitempty"`
+	ClusterID string     `json:"clusterId"`
+	NodeName  string     `json:"nodeName"`
+	Timestamp int64      `json:"timestamp"` // unix nano
+	Nodes     []Node     `json:"nodes"`
+	Edges     []Edge     `json:"edges"`
+	Events    []Event    `json:"events,omitempty"`
 	Stats     AgentStats `json:"stats"`
 }
 

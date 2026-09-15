@@ -186,7 +186,7 @@ func RiskScore(g *graph.Graph, id string) (int, map[string]any) {
 		"downstream": len(down), "upstream": len(up),
 		"centralityRank": rank, "reqPerSec": rps,
 		"singlePointOfFailure": spof,
-		"criticality": criticality(score),
+		"criticality":          criticality(score),
 	}
 	return score, details
 }

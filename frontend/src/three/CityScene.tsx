@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { Edge, Node } from '../api/client';
+import { esc, fmtK, shortId } from '../utils/format';
 
 export type CityMode = 'live' | 'heatmap' | 'security' | 'cost';
 
@@ -874,7 +875,6 @@ function metricLine(n: Node | undefined): string {
   if (m.replicas) parts.push(`${m.readyReplicas}/${m.replicas} ready`);
   return parts.join(' · ');
 }
-const fmtK = (v: number) => (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v.toFixed(0));
 
 function applyHighlight(st: CityState, selected: string | null, blast: { downstream: string[]; upstream: string[] } | null) {
   __setSel(selected);
@@ -922,11 +922,6 @@ function pickRoad(e: MouseEvent, ray: THREE.Raycaster, ptr: THREE.Vector2, st: C
   const seg = Math.floor((hits[0].index ?? 0) / 2);
   const edge = ud.edges[Math.min(seg, ud.edges.length - 1)];
   return edge ? { kind: ud.kind, edge } : null;
-}
-
-function shortId(id: string): string {
-  const i = id.lastIndexOf('/');
-  return i >= 0 ? id.slice(i + 1) : id;
 }
 
 function roadTooltip(st: CityState, road: { kind: string; edge: Edge }): string {
@@ -984,10 +979,6 @@ function mulberry(seed: number) {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-}
-
-function esc(s: string) {
-  return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 }
 
 function styleTooltip(el: HTMLDivElement) {

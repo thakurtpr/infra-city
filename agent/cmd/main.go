@@ -98,8 +98,8 @@ func runOnce(ctx context.Context, disc *discovery.Discoverer, tracer ebpf.Tracer
 		ClusterID: cluster, NodeName: nodeName, Timestamp: time.Now().UnixNano(),
 		Nodes: nodes, Edges: edges,
 		Stats: model.AgentStats{
-			EventsPerSec: float64(len(nodes)+len(edges)) / time.Since(start).Seconds(),
-			FlowsPerSec:  float64(len(flows)),
+			EventsPerSec:  float64(len(nodes)+len(edges)) / time.Since(start).Seconds(),
+			FlowsPerSec:   float64(len(flows)),
 			DroppedEvents: dropped, EBPFEnabled: tracer.Enabled(),
 		},
 	}

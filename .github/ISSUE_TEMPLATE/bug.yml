@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Bug report
+description: Something in InfraCity behaves incorrectly
+labels: [bug]
+body:
+  - type: input
+    attributes: { label: Component, description: agent / backend / frontend / helm / demo / docs }
+    validations: { required: true }
+  - type: input
+    attributes: { label: Version, description: image tag or commit SHA }
+    validations: { required: true }
+  - type: textarea
+    attributes: { label: What happened, description: observed vs expected }
+    validations: { required: true }
+  - type: textarea
+    attributes:
+      label: Reproduction
+      description: |
+        Exact steps. For cluster issues include:
+        `kubectl logs daemonset/infracity-agent --tail=20` and
+        `curl -s localhost:8080/api/self`
+    validations: { required: true }
+  - type: checkboxes
+    attributes:
+      label: Security
+      options:
+        - label: This report contains no secret values, tokens, or kubeconfigs
+          required: true
