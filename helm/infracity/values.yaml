@@ -1,0 +1,24 @@
+# Default values — tune per environment. RBAC is least-privilege by default.
+clusterId: production
+backend:
+  image: ghcr.io/infracity/backend:0.1.0
+  replicas: 1
+  port: 8080
+  authToken: "" # set via --set backend.authToken=... or existingSecret
+  resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { cpu: 500m, memory: 512Mi } }
+agent:
+  image: ghcr.io/infracity/agent:0.1.0
+  privilegedEBPF: false # true enables hostNetwork+privileged for full eBPF fidelity
+  interval: 15s
+  resources: { requests: { cpu: 50m, memory: 64Mi }, limits: { cpu: 300m, memory: 256Mi } }
+frontend:
+  image: ghcr.io/infracity/frontend:0.1.0
+  port: 80
+rbac:
+  # Exactly why each permission exists (auditable, minimal):
+  # nodes/pods: topology placement (pod->node) + status
+  # namespaces/deployments/daemonsets/statefulsets/replicasets: city districts + buildings
+  # services/endpointslices/ingresses: roads + gateways
+  # configmaps/pvcs/jobs/cronjobs: metadata graph (read-only)
+  # secrets: METADATA ONLY (list/get, never .data — agent never reads values)
+  create: true

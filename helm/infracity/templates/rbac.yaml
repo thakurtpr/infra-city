@@ -1,0 +1,40 @@
+# Least-privilege RBAC. The agent NEVER reads secret values — only metadata.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}-agent
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Release.Name }}-agent
+rules:
+  - apiGroups: [""] # nodes/namespaces/pods/services/configmaps/pvcs
+    resources: ["nodes", "namespaces", "pods", "services", "configmaps", "persistentvolumeclaims", "endpoints"]
+    verbs: ["get", "list", "watch"] # read-only discovery
+  - apiGroups: ["apps"] # workloads -> buildings
+    resources: ["deployments", "daemonsets", "statefulsets", "replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"] # jobs/cronjobs metadata
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"] # gateways/roads
+    resources: ["ingresses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["discovery.k8s.io"] # service->pod wiring
+    resources: ["endpointslices"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""] # secrets: METADATA ONLY. Agent lists metadata, never .data values.
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Release.Name }}-agent
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: {{ .Release.Name }}-agent }
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Release.Name }}-agent
+    namespace: {{ .Release.Namespace }}

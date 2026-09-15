@@ -1,0 +1,80 @@
+apiVersion: v1
+kind: Namespace
+metadata: { name: demo }
+---
+# Minimal demo town: frontend -> checkout -> {api -> auth, api -> payments -> postgres, api -> redis, orders -> kafka}
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: frontend, namespace: demo }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: frontend } }
+  template:
+    metadata: { labels: { app: frontend } }
+    spec: { containers: [{ name: app, image: nginx:alpine, ports: [{ containerPort: 80 }] }] }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: frontend, namespace: demo }
+spec: { selector: { app: frontend }, ports: [{ port: 80 }] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: api, namespace: demo }
+spec:
+  replicas: 3
+  selector: { matchLabels: { app: api } }
+  template:
+    metadata: { labels: { app: api } }
+    spec: { containers: [{ name: app, image: nginx:alpine, ports: [{ containerPort: 8080 }] }] }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: api, namespace: demo }
+spec: { selector: { app: api }, ports: [{ port: 8080 }] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: payments, namespace: demo }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: payments } }
+  template:
+    metadata: { labels: { app: payments } }
+    spec: { containers: [{ name: app, image: nginx:alpine, ports: [{ containerPort: 9090 }] }] }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: payments, namespace: demo }
+spec: { selector: { app: payments }, ports: [{ port: 9090 }] }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: { name: postgres, namespace: demo }
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector: { matchLabels: { app: postgres } }
+  template:
+    metadata: { labels: { app: postgres, infracity-role: postgres } }
+    spec: { containers: [{ name: db, image: postgres:16-alpine, env: [{ name: POSTGRES_PASSWORD, value: demo }] }] }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: postgres, namespace: demo }
+spec: { selector: { app: postgres }, ports: [{ port: 5432 }] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: redis, namespace: demo }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: redis } }
+  template:
+    metadata: { labels: { app: redis, infracity-role: redis } }
+    spec: { containers: [{ name: c, image: redis:7-alpine }] }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: redis, namespace: demo }
+spec: { selector: { app: redis }, ports: [{ port: 6379 }] }

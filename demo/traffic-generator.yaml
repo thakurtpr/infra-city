@@ -1,0 +1,14 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: traffic-gen, namespace: demo }
+spec:
+  schedule: "*/1 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: gen
+              image: curlimages/curl:8.5.0
+              command: ["/bin/sh", "-c", "for i in $(seq 1 200); do curl -s -o /dev/null -w '%{http_code}\n' http://frontend.demo/ & curl -s -o /dev/null http://api.demo:8080/ & done; wait"]

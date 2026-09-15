@@ -1,0 +1,17 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  // Always-loaded project instructions (primary instruction file).
+  "instructions": ["AGENTS.md"],
+  // Safety net: approve shell + file edits. Tighten per-directory via overrides below.
+  "permission": {
+    "bash": "ask",
+    "edit": "ask"
+  },
+  // MCP servers live here (replaces a separate .mcp.json).
+  "mcp": {
+    "servers": {
+      // Kubernetes API access for live cluster inspection (read-only usage).
+      // "kubernetes": { "type": "local", "command": "mcp-server-kubernetes", "enabled": false }
+    }
+  }
+}

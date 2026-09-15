@@ -1,0 +1,14 @@
+/bin/
+node_modules/
+dist/
+*.pid
+.DS_Store
+frontend/dist/
+
+# OpenCode local overrides (never commit personal/runtime config)
+.opencode/opencode.jsonc
+.env
+.env.local
+/tmp/
+
+*.tsbuildinfo
