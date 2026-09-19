@@ -25,7 +25,7 @@ kubectl port-forward svc/infracity-ui 8080:80  # http://localhost:8080
 With a demo town + chaos scripts for portfolio walkthroughs:
 
 ```bash
-make demo           # sample frontend/api/payments/postgres/redis town + traffic
+make demo           # frontend/checkout/api/auth/payments/orders/postgres/redis/kafka town + traffic
 make inject-latency # watch postgres → payments → checkout light up red
 make kill-pod       # watch rollout animation
 make scale-api      # watch buildings grow

@@ -11,6 +11,7 @@ package graph
 
 import (
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -99,27 +100,27 @@ func (g *Graph) UpsertEdge(e model.Edge) bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if existing, ok := g.edges[e.ID]; ok {
-		merged := *existing
+		// Update in place: out/in adjacency maps hold the same pointer,
+		// so replacing the pointer would leave traversals serving stale data.
 		// For observed flows take the latest sample; for inferred deps keep max confidence.
 		if e.RequestsPerSec != 0 || e.BytesPerSec != 0 || e.LatencyMs != 0 {
-			merged.RequestsPerSec = e.RequestsPerSec
-			merged.BytesPerSec = e.BytesPerSec
-			merged.LatencyMs = e.LatencyMs
-			merged.ErrorsPerSec = e.ErrorsPerSec
-			merged.Connections = e.Connections
-			merged.Protocol = firstNonEmpty(e.Protocol, merged.Protocol)
+			existing.RequestsPerSec = e.RequestsPerSec
+			existing.BytesPerSec = e.BytesPerSec
+			existing.LatencyMs = e.LatencyMs
+			existing.ErrorsPerSec = e.ErrorsPerSec
+			existing.Connections = e.Connections
+			existing.Protocol = firstNonEmpty(e.Protocol, existing.Protocol)
 		}
-		if e.Confidence > merged.Confidence {
-			merged.Confidence = e.Confidence
+		if e.Confidence > existing.Confidence {
+			existing.Confidence = e.Confidence
 		}
 		if e.Allowed != nil {
-			merged.Allowed = e.Allowed
+			existing.Allowed = e.Allowed
 		}
 		if e.DstPort != 0 {
-			merged.DstPort = e.DstPort
+			existing.DstPort = e.DstPort
 		}
-		merged.UpdatedAt = e.UpdatedAt
-		g.edges[e.ID] = &merged
+		existing.UpdatedAt = e.UpdatedAt
 		return false
 	}
 	cp := e
@@ -193,7 +194,9 @@ func (g *Graph) Nodes(cluster, namespace, typ string) []model.Node {
 	return out
 }
 
-// Edges returns a filtered copy list.
+// Edges returns a filtered copy list. Cluster filters by the canonical
+// "<type>/<cluster>/..." prefix of the edge endpoints (edges carry no
+// cluster field of their own); empty cluster returns all edges.
 func (g *Graph) Edges(cluster, typ string) []model.Edge {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
@@ -202,11 +205,30 @@ func (g *Graph) Edges(cluster, typ string) []model.Edge {
 		if typ != "" && e.Type != typ {
 			continue
 		}
-		_ = cluster
+		if cluster != "" && edgeCluster(e) != cluster {
+			continue
+		}
 		out = append(out, *e)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out
+}
+
+// edgeCluster extracts the cluster from a canonical endpoint ID
+// ("<type>/<cluster>/..."), preferring the source.
+func edgeCluster(e *model.Edge) string {
+	if c := clusterFromID(e.Source); c != "" {
+		return c
+	}
+	return clusterFromID(e.Destination)
+}
+
+func clusterFromID(id string) string {
+	parts := strings.SplitN(id, "/", 3)
+	if len(parts) < 2 {
+		return ""
+	}
+	return parts[1]
 }
 
 // Neighbors returns out/in edges of a node (copies).

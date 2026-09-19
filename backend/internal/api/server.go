@@ -50,7 +50,17 @@ func NewServer(g *graph.Graph, snaps *store.SnapshotStore, hub *ws.Hub, authToke
 			Help: "Agent ingest request latency.",
 		}),
 	}
-	prometheus.MustRegister(s.ingestLatency)
+	// Register once per process: tests and embedded uses may construct
+	// multiple Servers; reuse the existing collector instead of panicking.
+	if err := prometheus.Register(s.ingestLatency); err != nil {
+		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+			if h, ok := are.ExistingCollector.(prometheus.Histogram); ok {
+				s.ingestLatency = h
+			}
+		} else {
+			log.Error().Err(err).Msg("prometheus register failed")
+		}
+	}
 	return s
 }
 
@@ -130,11 +140,24 @@ func (s *Server) listClusters(w http.ResponseWriter, _ *http.Request) {
 			m.K8sVersion = n.Version
 		}
 	}
-	// overlay incident health
+	// overlay incident health: a cluster with a critical firing incident
+	// reads critical, warning-only reads degraded.
 	for _, inc := range analysis.DetectIncidents(s.graph) {
-		for _, id := range seen {
-			_ = id
-			_ = inc
+		root, ok := s.graph.Get(inc.RootNode)
+		if !ok {
+			continue
+		}
+		m, ok := seen[root.Cluster]
+		if !ok {
+			continue
+		}
+		switch inc.Severity {
+		case "critical":
+			m.Health = "critical"
+		default:
+			if m.Health == "healthy" {
+				m.Health = "degraded"
+			}
 		}
 	}
 	out := make([]model.ClusterMeta, 0, len(seen))
@@ -188,7 +211,6 @@ func (s *Server) getMetrics(w http.ResponseWriter, r *http.Request) {
 	nodes := s.graph.Nodes(r.URL.Query().Get("cluster"), "", "")
 	var rps, bps, errW, latSum float64
 	var pods, svcs, flows int
-	podsSet := map[string]bool{}
 	for _, n := range nodes {
 		switch n.Type {
 		case model.TypePod:
@@ -201,10 +223,9 @@ func (s *Server) getMetrics(w http.ResponseWriter, r *http.Request) {
 			bps += n.Metrics.BytesPerSec
 			errW += n.Metrics.ErrRate * max1(n.Metrics.ReqPerSec)
 			latSum += n.Metrics.LatencyMsP95
-			_ = podsSet
 		}
 	}
-	edges := s.graph.Edges("", model.EdgeNetwork)
+	edges := s.graph.Edges(r.URL.Query().Get("cluster"), model.EdgeNetwork)
 	flows = len(edges)
 	errRate := 0.0
 	if rps > 0 {

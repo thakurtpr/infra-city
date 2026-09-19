@@ -7,6 +7,7 @@ export interface Node {
   metrics?: {
     cpuPct?: number; memPct?: number; reqPerSec?: number; errRate?: number;
     latencyMsP95?: number; bytesPerSec?: number; replicas?: number; readyReplicas?: number; restarts?: number;
+    costPerMonth?: number;
   };
 }
 
@@ -19,6 +20,9 @@ export interface Edge {
 export interface GraphData { nodes: Node[]; edges: Edge[]; }
 export interface Incident { id: string; title: string; rootNode: string; severity: string; affected: string[]; description?: string; }
 export interface WSEvent { type: string; resource?: Node; edge?: Edge; message?: string; timestamp: string; }
+export interface Change { id: string; timestamp: number; kind: string; summary: string; nodeId?: string; }
+export interface PathHop { nodeId: string; node?: Node; edge?: Edge; }
+export interface PathResult { path: string[]; hops: PathHop[]; }
 
 const base = '';
 
@@ -39,6 +43,8 @@ export const api = {
   search: (q: string) => get<Node[]>(`/api/search?q=${encodeURIComponent(q)}`),
   snapshots: () => get<{ id: string; timestamp: string; label?: string }[]>('/api/snapshots'),
   snapshot: (id: string) => get<GraphData>(`/api/snapshots/${id}`),
+  path: (from: string, to: string) => get<PathResult>(`/api/path?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+  changes: () => get<Change[]>('/api/changes'),
   self: () => get<Record<string, unknown>>('/api/self'),
 };
 

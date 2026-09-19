@@ -1,15 +1,30 @@
 # SPDX-License-Identifier: Apache-2.0
-apiVersion: batch/v1
-kind: CronJob
-metadata: { name: traffic-gen, namespace: demo }
+# Continuous synthetic load across the demo town. A steady trickle (not a
+# once-a-minute burst) keeps ESTABLISHED connections present between the
+# agent's /proc samples so the city shows living traffic without eBPF.
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: traffic-gen-live, namespace: demo }
 spec:
-  schedule: "*/1 * * * *"
-  jobTemplate:
+  replicas: 1
+  selector: { matchLabels: { app: traffic-gen-live } }
+  template:
+    metadata: { labels: { app: traffic-gen-live } }
     spec:
-      template:
-        spec:
-          restartPolicy: OnFailure
-          containers:
-            - name: gen
-              image: curlimages/curl:8.5.0
-              command: ["/bin/sh", "-c", "for i in $(seq 1 200); do curl -s -o /dev/null -w '%{http_code}\n' http://frontend.demo/ & curl -s -o /dev/null http://api.demo:8080/ & done; wait"]
+      containers:
+        - name: gen
+          image: curlimages/curl:8.5.0
+          command:
+            - /bin/sh
+            - -c
+            - |
+              hit() { while true; do curl -s -o /dev/null "$1"; sleep 0.2; done; }
+              hit http://frontend.demo/ &
+              hit http://checkout.demo/ &
+              hit http://api.demo:8080/ &
+              hit http://auth.demo:8080/ &
+              hit http://payments.demo:9090/ &
+              hit http://orders.demo:8080/ &
+              wait
+          livenessProbe: { exec: { command: [sh, -c, "true"] }, periodSeconds: 60 }
+          resources: { requests: { cpu: 25m, memory: 32Mi }, limits: { cpu: 200m, memory: 128Mi } }

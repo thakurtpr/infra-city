@@ -3,7 +3,10 @@ apiVersion: v1
 kind: Namespace
 metadata: { name: demo }
 ---
-# Minimal demo town: frontend -> checkout -> {api -> auth, api -> payments -> postgres, api -> redis, orders -> kafka}
+# Demo town (mirrors backend SeedDemo): frontend -> checkout -> {api -> auth, api -> payments -> postgres, api -> redis, orders -> kafka}.
+# App placeholders run nginx:alpine (probes hit :80, Services remap to the
+# logical port); stateful roles keep their real images where cheap
+# (postgres/redis). Every workload carries requests+limits and probes.
 apiVersion: apps/v1
 kind: Deployment
 metadata: { name: frontend, namespace: demo }
@@ -12,12 +15,41 @@ spec:
   selector: { matchLabels: { app: frontend } }
   template:
     metadata: { labels: { app: frontend } }
-    spec: { containers: [{ name: app, image: nginx:alpine, ports: [{ containerPort: 80 }] }] }
+    spec:
+      containers:
+        - name: app
+          image: nginx:alpine
+          ports: [{ containerPort: 80 }]
+          livenessProbe: { httpGet: { path: /, port: 80 }, periodSeconds: 15 }
+          readinessProbe: { httpGet: { path: /, port: 80 }, periodSeconds: 5 }
+          resources: { requests: { cpu: 25m, memory: 32Mi }, limits: { cpu: 200m, memory: 128Mi } }
 ---
 apiVersion: v1
 kind: Service
 metadata: { name: frontend, namespace: demo }
-spec: { selector: { app: frontend }, ports: [{ port: 80 }] }
+spec: { selector: { app: frontend }, ports: [{ port: 80, targetPort: 80 }] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: checkout, namespace: demo }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: checkout } }
+  template:
+    metadata: { labels: { app: checkout } }
+    spec:
+      containers:
+        - name: app
+          image: nginx:alpine
+          ports: [{ containerPort: 80 }]
+          livenessProbe: { httpGet: { path: /, port: 80 }, periodSeconds: 15 }
+          readinessProbe: { httpGet: { path: /, port: 80 }, periodSeconds: 5 }
+          resources: { requests: { cpu: 25m, memory: 32Mi }, limits: { cpu: 200m, memory: 128Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: checkout, namespace: demo }
+spec: { selector: { app: checkout }, ports: [{ port: 80, targetPort: 80 }] }
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -27,12 +59,41 @@ spec:
   selector: { matchLabels: { app: api } }
   template:
     metadata: { labels: { app: api } }
-    spec: { containers: [{ name: app, image: nginx:alpine, ports: [{ containerPort: 8080 }] }] }
+    spec:
+      containers:
+        - name: app
+          image: nginx:alpine
+          ports: [{ containerPort: 80 }]
+          livenessProbe: { httpGet: { path: /, port: 80 }, periodSeconds: 15 }
+          readinessProbe: { httpGet: { path: /, port: 80 }, periodSeconds: 5 }
+          resources: { requests: { cpu: 25m, memory: 32Mi }, limits: { cpu: 200m, memory: 128Mi } }
 ---
 apiVersion: v1
 kind: Service
 metadata: { name: api, namespace: demo }
-spec: { selector: { app: api }, ports: [{ port: 8080 }] }
+spec: { selector: { app: api }, ports: [{ port: 8080, targetPort: 80 }] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: auth, namespace: demo }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: auth } }
+  template:
+    metadata: { labels: { app: auth } }
+    spec:
+      containers:
+        - name: app
+          image: nginx:alpine
+          ports: [{ containerPort: 80 }]
+          livenessProbe: { httpGet: { path: /, port: 80 }, periodSeconds: 15 }
+          readinessProbe: { httpGet: { path: /, port: 80 }, periodSeconds: 5 }
+          resources: { requests: { cpu: 25m, memory: 32Mi }, limits: { cpu: 200m, memory: 128Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: auth, namespace: demo }
+spec: { selector: { app: auth }, ports: [{ port: 8080, targetPort: 80 }] }
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -42,12 +103,41 @@ spec:
   selector: { matchLabels: { app: payments } }
   template:
     metadata: { labels: { app: payments } }
-    spec: { containers: [{ name: app, image: nginx:alpine, ports: [{ containerPort: 9090 }] }] }
+    spec:
+      containers:
+        - name: app
+          image: nginx:alpine
+          ports: [{ containerPort: 80 }]
+          livenessProbe: { httpGet: { path: /, port: 80 }, periodSeconds: 15 }
+          readinessProbe: { httpGet: { path: /, port: 80 }, periodSeconds: 5 }
+          resources: { requests: { cpu: 25m, memory: 32Mi }, limits: { cpu: 200m, memory: 128Mi } }
 ---
 apiVersion: v1
 kind: Service
 metadata: { name: payments, namespace: demo }
-spec: { selector: { app: payments }, ports: [{ port: 9090 }] }
+spec: { selector: { app: payments }, ports: [{ port: 9090, targetPort: 80 }] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: orders, namespace: demo }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: orders } }
+  template:
+    metadata: { labels: { app: orders } }
+    spec:
+      containers:
+        - name: app
+          image: nginx:alpine
+          ports: [{ containerPort: 80 }]
+          livenessProbe: { httpGet: { path: /, port: 80 }, periodSeconds: 15 }
+          readinessProbe: { httpGet: { path: /, port: 80 }, periodSeconds: 5 }
+          resources: { requests: { cpu: 25m, memory: 32Mi }, limits: { cpu: 200m, memory: 128Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: orders, namespace: demo }
+spec: { selector: { app: orders }, ports: [{ port: 8080, targetPort: 80 }] }
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -58,7 +148,15 @@ spec:
   selector: { matchLabels: { app: postgres } }
   template:
     metadata: { labels: { app: postgres, infracity-role: postgres } }
-    spec: { containers: [{ name: db, image: postgres:16-alpine, env: [{ name: POSTGRES_PASSWORD, value: demo }] }] }
+    spec:
+      containers:
+        - name: db
+          image: postgres:16-alpine
+          env: [{ name: POSTGRES_PASSWORD, value: demo }]
+          ports: [{ containerPort: 5432 }]
+          livenessProbe: { exec: { command: [pg_isready, -U, postgres] }, periodSeconds: 20 }
+          readinessProbe: { exec: { command: [pg_isready, -U, postgres] }, periodSeconds: 5 }
+          resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { cpu: 500m, memory: 512Mi } }
 ---
 apiVersion: v1
 kind: Service
@@ -73,9 +171,41 @@ spec:
   selector: { matchLabels: { app: redis } }
   template:
     metadata: { labels: { app: redis, infracity-role: redis } }
-    spec: { containers: [{ name: c, image: redis:7-alpine }] }
+    spec:
+      containers:
+        - name: c
+          image: redis:7-alpine
+          ports: [{ containerPort: 6379 }]
+          livenessProbe: { tcpSocket: { port: 6379 }, periodSeconds: 15 }
+          readinessProbe: { tcpSocket: { port: 6379 }, periodSeconds: 5 }
+          resources: { requests: { cpu: 50m, memory: 64Mi }, limits: { cpu: 300m, memory: 256Mi } }
 ---
 apiVersion: v1
 kind: Service
 metadata: { name: redis, namespace: demo }
 spec: { selector: { app: redis }, ports: [{ port: 6379 }] }
+---
+# Kafka placeholder: name-derived role (agent maps name "kafka" -> role kafka).
+# Swap for a real broker (e.g. bitnami/kafka with KRaft) when load-testing streams.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: { name: kafka, namespace: demo }
+spec:
+  serviceName: kafka
+  replicas: 1
+  selector: { matchLabels: { app: kafka } }
+  template:
+    metadata: { labels: { app: kafka, infracity-role: kafka } }
+    spec:
+      containers:
+        - name: broker
+          image: nginx:alpine
+          ports: [{ containerPort: 80 }]
+          livenessProbe: { httpGet: { path: /, port: 80 }, periodSeconds: 15 }
+          readinessProbe: { httpGet: { path: /, port: 80 }, periodSeconds: 5 }
+          resources: { requests: { cpu: 25m, memory: 32Mi }, limits: { cpu: 200m, memory: 128Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: kafka, namespace: demo }
+spec: { selector: { app: kafka }, ports: [{ port: 9092, targetPort: 80 }] }

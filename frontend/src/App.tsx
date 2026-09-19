@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import CityScene, { CityMode } from './three/CityScene';
-import { api, connectEvents, Edge, Node } from './api/client';
+import { api, connectEvents, Change, Edge, Node } from './api/client';
 import { fmtK } from './utils/format';
 
 export default function App() {
@@ -16,13 +16,24 @@ export default function App() {
   const [query, setQuery] = useState('');
   const [flyTo, setFlyTo] = useState<string | null>(null);
   const [live, setLive] = useState(true);
+  const [snaps, setSnaps] = useState<{ id: string; timestamp: string; label?: string }[]>([]);
+  const [viewingSnap, setViewingSnap] = useState<string | null>(null);
+  const [pathFrom, setPathFrom] = useState('');
+  const [pathTo, setPathTo] = useState('');
+  const [pathRes, setPathRes] = useState<string[] | null>(null);
+  const [pathErr, setPathErr] = useState('');
+  const [changes, setChanges] = useState<Change[]>([]);
+  const [deps, setDeps] = useState<{ source: string; target: string; confidence: number }[]>([]);
 
   const refresh = useCallback(async () => {
     try {
-      const [g, m, inc] = await Promise.all([api.graph(), api.metrics(), api.incidents()]);
-      setNodes(g.nodes); setEdges(g.edges); setMetrics(m); setIncidents(inc);
+      const [g, m, inc, ch, dp, sn] = await Promise.all([
+        api.graph(), api.metrics(), api.incidents(), api.changes(), api.dependencies(), api.snapshots(),
+      ]);
+      if (!viewingSnap) { setNodes(g.nodes); setEdges(g.edges); }
+      setMetrics(m); setIncidents(inc); setChanges(ch.slice(0, 8)); setDeps(dp.slice(0, 8)); setSnaps(sn);
     } catch (e) { console.warn('backend unreachable (make dev running?)', e); }
-  }, []);
+  }, [viewingSnap]);
 
   useEffect(() => { refresh(); const t = setInterval(refresh, 5000); return () => clearInterval(t); }, [refresh]);
 
@@ -63,6 +74,28 @@ export default function App() {
     if (!query.trim()) return;
     const res = await api.search(query);
     if (res.length) { setFlyTo(res[0].id); inspect(res[0].id); }
+  };
+
+  const viewSnapshot = async (id: string) => {
+    if (!id) { setViewingSnap(null); setLive(true); refresh(); return; }
+    try {
+      const s = await api.snapshot(id);
+      setViewingSnap(id); setLive(false);
+      setNodes(s.nodes); setEdges(s.edges);
+    } catch { /* snapshot may have aged out of the ring */ }
+  };
+
+  const findPath = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPathErr(''); setPathRes(null);
+    if (!pathFrom.trim() || !pathTo.trim()) return;
+    try {
+      const r = await api.path(pathFrom.trim(), pathTo.trim());
+      setPathRes(r.path);
+      if (r.path.length) { setFlyTo(r.path[0]); inspect(r.path[r.path.length - 1]); }
+    } catch {
+      setPathErr('no path between those nodes');
+    }
   };
 
   return (
@@ -117,6 +150,7 @@ export default function App() {
                 <Row k="req/s" v={fmtK(selNode.metrics.reqPerSec ?? 0)} />
                 <Row k="err" v={((selNode.metrics.errRate ?? 0) * 100).toFixed(2) + '%'} />
                 <Row k="p95" v={fmtK(selNode.metrics.latencyMsP95 ?? 0) + 'ms'} />
+                {selNode.metrics.costPerMonth ? <Row k="cost" v={'$' + selNode.metrics.costPerMonth.toFixed(0) + '/mo'} /> : null}
                 {selNode.metrics.replicas ? <Row k="replicas" v={`${selNode.metrics.readyReplicas}/${selNode.metrics.replicas}`} /> : null}
               </tbody>
             </table>
@@ -129,6 +163,37 @@ export default function App() {
           {explain && <p style={{ fontSize: 12, opacity: 0.9 }}>🤖 {explain}</p>}
         </div>
       )}
+
+      {/* explorer: time travel + path + changes + dependencies */}
+      <div style={explorer}>
+        <div style={h}>TIME TRAVEL {viewingSnap && <button onClick={() => viewSnapshot('')} style={btn}>← live</button>}</div>
+        <select value={viewingSnap ?? ''} onChange={(e) => viewSnapshot(e.target.value)} style={inputSm}>
+          <option value="">live graph</option>
+          {snaps.map((s) => (
+            <option key={s.id} value={s.id}>{new Date(s.timestamp).toLocaleTimeString()} · {s.label ?? 'snapshot'}</option>
+          ))}
+        </select>
+        <div style={h}>PATH EXPLORER</div>
+        <form onSubmit={findPath} style={{ display: 'flex', gap: 4 }}>
+          <input value={pathFrom} onChange={(e) => setPathFrom(e.target.value)} placeholder="from node id" style={inputSm} />
+          <input value={pathTo} onChange={(e) => setPathTo(e.target.value)} placeholder="to node id" style={inputSm} />
+          <button type="submit" style={btn}>→</button>
+        </form>
+        {pathErr && <div style={{ fontSize: 11, color: '#ff6b6b' }}>{pathErr}</div>}
+        {pathRes && <div style={{ fontSize: 11, opacity: 0.9 }}>{pathRes.map((p) => p.split('/').pop()).join(' → ')}</div>}
+        <div style={h}>WHAT CHANGED ({changes.length})</div>
+        {changes.length === 0 && <div style={{ opacity: 0.6, fontSize: 11 }}>no changes recorded yet</div>}
+        {changes.slice(0, 5).map((c) => (
+          <div key={c.id} style={{ fontSize: 11, opacity: 0.85 }}>· [{c.kind}] {c.summary}</div>
+        ))}
+        <div style={h}>TOP DEPENDENCIES</div>
+        {deps.slice(0, 5).map((d) => (
+          <div key={d.source + d.target} style={{ fontSize: 11, opacity: 0.85 }}>
+            · {d.source.split('/').pop()} → {d.target.split('/').pop()} <b>{(d.confidence * 100).toFixed(0)}%</b>
+          </div>
+        ))}
+      </div>
+      {viewingSnap && <div style={snapBanner}>VIEWING SNAPSHOT — live updates paused</div>}
     </div>
   );
 }
@@ -144,8 +209,11 @@ const Row = ({ k, v }: { k: string; v: string }) => (<tr><td style={{ opacity: 0
 const bar: React.CSSProperties = { position: 'absolute', top: 12, left: 12, right: 12, display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', background: 'rgba(10,16,34,.85)', padding: '8px 12px', borderRadius: 10, border: '1px solid #22305e', backdropFilter: 'blur(6px)' };
 const panel: React.CSSProperties = { position: 'absolute', left: 12, top: 70, width: 230, background: 'rgba(10,16,34,.88)', padding: 12, borderRadius: 10, border: '1px solid #22305e', display: 'flex', flexDirection: 'column', gap: 4 };
 const inspector: React.CSSProperties = { position: 'absolute', right: 12, top: 70, width: 300, background: 'rgba(10,16,34,.92)', padding: 12, borderRadius: 10, border: '1px solid #22305e' };
+const explorer: React.CSSProperties = { position: 'absolute', right: 12, bottom: 12, width: 300, maxHeight: '46%', overflowY: 'auto', background: 'rgba(10,16,34,.92)', padding: 12, borderRadius: 10, border: '1px solid #22305e', display: 'flex', flexDirection: 'column', gap: 4 };
+const snapBanner: React.CSSProperties = { position: 'absolute', top: 70, left: '50%', transform: 'translateX(-50%)', background: '#6b4d12', color: '#fff', padding: '6px 14px', borderRadius: 8, fontSize: 12, letterSpacing: 1 };
 const h: React.CSSProperties = { fontSize: 11, letterSpacing: 1.5, opacity: 0.6, marginTop: 6 };
 const input: React.CSSProperties = { background: '#0d1530', color: '#dbe4ff', border: '1px solid #2a3a6e', borderRadius: 6, padding: '6px 10px', width: 320, outline: 'none' };
+const inputSm: React.CSSProperties = { background: '#0d1530', color: '#dbe4ff', border: '1px solid #2a3a6e', borderRadius: 6, padding: '5px 8px', width: '100%', outline: 'none', fontSize: 12 };
 const btn: React.CSSProperties = { background: '#16204a', color: '#dbe4ff', border: '1px solid #2a3a6e', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', fontSize: 12 };
 const btnActive: React.CSSProperties = { ...btn, background: '#2b4bd8', borderColor: '#5b7cff' };
 const incBtn: React.CSSProperties = { ...btn, textAlign: 'left', marginTop: 4 };

@@ -435,6 +435,10 @@ function facadeColor(n: Node, mode: CityMode): number {
     const cpu = Math.min(1, (n.metrics?.cpuPct ?? 20) / 100);
     return new THREE.Color().setHSL(0.62 - cpu * 0.62, 0.75, 0.32).getHex();
   }
+  if (mode === 'cost') {
+    const t = Math.min(1, (n.metrics?.costPerMonth ?? 0) / 150);
+    return new THREE.Color().setHSL(0.33 - t * 0.33, 0.8, 0.32).getHex();
+  }
   if (mode === 'security') return 0x1c3f8f;
   switch (n.type) {
     case 'database': return n.role === 'redis' ? 0x6e1f22 : n.role === 'kafka' ? 0x3d2a86 : 0x173f6e;

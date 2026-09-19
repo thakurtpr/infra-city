@@ -32,3 +32,12 @@ confidence = f(request volume, connection stability). UI surfaces the score.
 ## Scaling
 In-memory graph + snapshot ring today; PostgreSQL + TimescaleDB tomorrow behind
 the same store interface. Edge aggregation (127 flows → 1 road) keeps WebGL load flat.
+
+## Live signal vs demo mode
+The unprivileged agent reads its own network namespace (`/proc/net/tcp{,6}`),
+so on a real cluster it sees node-level topology + wiring (services, endpoints,
+ingresses) but almost no pod-to-service L7 flows — the command center honestly
+reports `— L4 only` and the city renders the declared-wiring layer. Full flow
+fidelity needs the privileged eBPF path (`agent.privilegedEBPF=true`, objects
+per `ebpf/README.md`). `make dev` / demo mode synthesizes traffic so the
+traffic/incident/canary story is explorable with zero cluster.

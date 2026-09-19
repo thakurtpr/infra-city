@@ -31,10 +31,30 @@ type Flow struct {
 	Process          string
 }
 
-// SampleProcNet parses /proc/net/tcp for established connections.
-// Portable fallback: no privileges required, coarse but real data.
+// SampleProcNet parses /proc/net/tcp and /proc/net/tcp6 for established
+// connections. Portable fallback: no privileges required, coarse but real data.
+// tcp6 is best-effort (absent on some kernels); IPv6 addresses pass through
+// undecoded and still aggregate into external endpoints.
 func SampleProcNet() ([]Flow, error) {
-	f, err := os.Open("/proc/net/tcp")
+	var flows []Flow
+	seenErr := error(nil)
+	for _, path := range []string{"/proc/net/tcp", "/proc/net/tcp6"} {
+		f, err := sampleFile(path)
+		if err != nil {
+			if path == "/proc/net/tcp" {
+				return nil, err
+			}
+			seenErr = err
+			continue
+		}
+		flows = append(flows, f...)
+	}
+	_ = seenErr
+	return flows, nil
+}
+
+func sampleFile(path string) ([]Flow, error) {
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}

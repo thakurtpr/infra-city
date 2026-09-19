@@ -33,7 +33,8 @@ func SeedDemo(g *graph.Graph) {
 		})
 	}
 	m := func(rps, err, p95, bps float64, cpu, mem float64) *model.Metrics {
-		return &model.Metrics{ReqPerSec: rps, ErrRate: err, LatencyMsP95: p95, BytesPerSec: bps, CPUPct: cpu, MemPct: mem}
+		return &model.Metrics{ReqPerSec: rps, ErrRate: err, LatencyMsP95: p95, BytesPerSec: bps, CPUPct: cpu, MemPct: mem,
+			CostPerMonth: 8 + cpu*1.5 + mem*0.7} // synthetic $/mo so cost mode has signal
 	}
 
 	mk(model.IDFor(model.TypeCluster, demoCluster, "", demoCluster), model.TypeCluster, "", demoCluster, "running", nil, map[string]string{"k8sVersion": "v1.31.2"})
