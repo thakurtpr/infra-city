@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-.PHONY: dev demo backend frontend agent test lint build docker helm chaos-latency chaos-errors kill-pod scale-api ebpf ebpf-test ebpf-verify agent-full
+.PHONY: dev demo backend frontend agent test lint build docker helm inject-latency inject-errors kill-pod scale-api ebpf ebpf-test ebpf-verify agent-full
 
 BACKEND_ADDR ?= :8080
 EBPF_BUILDER ?= infracity/ebpf-builder:24.04
@@ -91,8 +91,11 @@ demo:
 inject-latency:
 	kubectl exec -n demo postgres-0 -- tc qdisc add dev eth0 root netem delay 400ms || echo "tc unavailable (postgres is a StatefulSet without iproute2); use INFRACITY_CHAOS_LATENCY_MS=2500 make dev"
 
+# Was: patch a chaos annotation no component reads (theater). Real error
+# faults need broken responses, not labels; the guaranteed path is demo-mode
+# chaos: INFRACITY_CHAOS_ERRORS_PCT=25 make dev.
 inject-errors:
-	kubectl patch -n demo deploy/api --patch '{"spec":{"template":{"metadata":{"annotations":{"chaos":"errors"}}}}}' || echo "run make demo first"
+	@echo "no kind-native error fault (annotations change nothing); use INFRACITY_CHAOS_ERRORS_PCT=25 make dev"
 
 kill-pod:
 	kubectl delete pod -n demo -l app=api --grace-period=0 --force || echo "run make demo first"
