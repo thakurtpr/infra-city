@@ -22,6 +22,9 @@ helm install infracity helm/infracity --set clusterId=production
 kubectl port-forward svc/infracity-ui 8080:80  # http://localhost:8080
 ```
 
+Chart defaults reference published images; until the first GHCR cut, build
+them locally (`make docker`) and `kind load` each image before installing.
+
 Chart defaults point at `ghcr.io/infracity/*:0.1.0`; cutting a release means
 building (`make docker`, plus `make ebpf` + `TAGS=ebpf_full` for the agent),
 pushing (needs a token with `write:packages`:
@@ -51,19 +54,19 @@ watch the city heal. `INFRACITY_CHAOS_ERRORS_PCT=25` faults errors instead.
 - **Dependency inference** with confidence scores — no manual DAG.
 - **Incident mode + blast radius + "why is this slow?"** explainer grounded in
   real metrics. **Risk scores** flag single points of failure.
-- **Time travel** snapshots, **deployment/canary** animation, **security mode**
-  (allowed/denied), **heatmap/cost** building modes, **path explorer**
-  (`GET /api/path?from=&to=`), **"what changed?"** feed.
+- **Time travel** snapshots (ring + optional Postgres log), **rollout visibility**
+  (live replicas/restarts), **security mode** (allowed/denied), **heatmap/cost**
+  building modes, **path explorer** (`GET /api/path?from=&to=`), **"what changed?"** feed.
 - **Command center**: req/s, error %, p95, pods/services/flows + active incidents.
 - **Search**: `payments`, `svc:checkout`, `ns:payments`, `cluster:production` —
   camera flies to the result.
 - **Self-observability**: `/metrics` (Prometheus), `/health`, `/ready`,
-  `/api/self` (graph size, WS conns/drops, ingest latency).
+  `/api/self` (graph size, WS conns/drops, ingest + eviction totals).
 
 ## Repo layout
 
 ```
-agent/      DaemonSet: K8s discovery, eBPF//proc flows, TLS exporter w/ retries
+agent/      DaemonSet: K8s discovery, eBPF + /proc flows, TLS exporter w/ retries
 backend/    graph engine, ingest, REST+WS API, analysis, snapshot store
 ebpf/       C probes + loader docs
 frontend/   React+TS+Three.js city, command center, inspector
@@ -77,5 +80,6 @@ docs/       architecture, security, data model, API
 Open production → zoom to `payments` → follow
 frontend → checkout → payments → postgres → `make inject-latency` → city reacts
 (red glow, incident card, blast radius) → "why slow?" cites postgres p95
-18ms → 420ms → canary v2 10% → 100% with traffic visibly shifting. See
-`docs/architecture.md` for tradeoffs (why eBPF / WS / Three.js / DaemonSet).
+18ms → 420ms → `make scale-api` → buildings visibly grow with traffic
+shifting to new replicas. See `docs/architecture.md` for tradeoffs
+(why eBPF / WS / Three.js / DaemonSet).

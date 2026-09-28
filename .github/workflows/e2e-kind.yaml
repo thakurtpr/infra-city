@@ -5,6 +5,9 @@ on:
   push: { branches: [main] }
   workflow_dispatch: {}
 
+# Least privilege: the loop builds local images and runs kind; nothing writes.
+permissions: { contents: read }
+
 jobs:
   e2e:
     runs-on: ubuntu-latest

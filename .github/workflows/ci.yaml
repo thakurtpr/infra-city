@@ -4,6 +4,9 @@ on:
   push: { branches: [main] }
   pull_request: { branches: [main] }
 
+# Least privilege: jobs only read the repo (no writes needed anywhere here).
+permissions: { contents: read }
+
 jobs:
   dco:
     runs-on: ubuntu-latest
