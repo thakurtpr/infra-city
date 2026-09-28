@@ -41,24 +41,6 @@ func testServer() *Server {
 
 var srv = testServer()
 
-func get(t *testing.T, path string) (int, map[string]any, []any) {
-	t.Helper()
-	req := httptest.NewRequest("GET", path, nil)
-	rec := httptest.NewRecorder()
-	srv.Router().ServeHTTP(rec, req)
-	if rec.Code != 200 {
-		t.Fatalf("GET %s = %d, want 200 (%s)", path, rec.Code, rec.Body.String())
-	}
-	// decode as generic; callers narrow
-	var obj map[string]any
-	var arr []any
-	if err := json.Unmarshal(rec.Body.Bytes(), &obj); err != nil {
-		t.Fatalf("decode %s: %v", path, err)
-	}
-	_ = arr
-	return rec.Code, obj, nil
-}
-
 func TestHealth(t *testing.T) {
 	req := httptest.NewRequest("GET", "/health", nil)
 	rec := httptest.NewRecorder()
@@ -143,7 +125,7 @@ func TestIncidentsShape(t *testing.T) {
 	req := httptest.NewRequest("GET", "/api/incidents", nil)
 	rec := httptest.NewRecorder()
 	srv.Router().ServeHTTP(rec, req)
-	if string(rec.Body.Bytes()) == "null\n" {
+	if rec.Body.String() == "null\n" {
 		t.Fatal("incidents must serialize as [], never null")
 	}
 }
