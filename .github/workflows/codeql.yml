@@ -5,8 +5,11 @@ on:
   pull_request: { branches: [main] }
   schedule: [{ cron: "0 6 * * 1" }]
 permissions: { contents: read }
+# Split per language: a slow analysis in one language must not block the
+# other, and failures pinpoint the culprit. (Combined go+javascript hung
+# 70+ min in analyze on first run.)
 jobs:
-  analyze:
+  analyze-go:
     runs-on: ubuntu-latest
     permissions:
       security-events: write
@@ -15,12 +18,21 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
-        with: { languages: go, javascript }
-      # Explicit builds, not autobuild: deterministic, and autobuild hung
-      # 40+ min on first run (opaque heuristics). These mirror ci exactly.
+        with: { languages: go }
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with: { go-version: "1.26", cache: true }
       - run: go build ./...
+      - uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+  analyze-js:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with: { languages: javascript }
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with: { node-version: "22", cache: npm, cache-dependency-path: frontend/package-lock.json }
       - run: npm ci
