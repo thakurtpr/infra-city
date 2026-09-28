@@ -37,10 +37,12 @@ jobs:
           kubectl wait --for=condition=Ready pod -l app=infracity-backend --timeout=120s
           sleep 30  # two agent cycles
           kubectl port-forward svc/infracity-backend 8080:8080 & sleep 5
-          test "$(curl -s localhost:8080/health | python3 -c 'import json,sys; print(json.load(sys.stdin)["status"])')" = "ok"
-          curl -s "localhost:8080/api/graph?cluster=kind-ci" | python3 -c "
-          import json,sys
-          d = json.load(sys.stdin)
+          curl -s localhost:8080/health -o /tmp/health.json
+          test "$(python3 -c 'import json; print(json.load(open("/tmp/health.json"))["status"])')" = "ok"
+          curl -s "localhost:8080/api/graph?cluster=kind-ci" -o /tmp/graph.json
+          python3 -c "
+          import json
+          d = json.load(open('/tmp/graph.json'))
           assert len(d['nodes']) > 20, d
           types = {n['type'] for n in d['nodes']}
           assert {'pod','service','deployment'} <= types, types
