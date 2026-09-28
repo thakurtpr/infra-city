@@ -8,6 +8,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"sync"
 
@@ -23,13 +24,23 @@ var bpfObjects []byte
 // fullTracer loads the compiled CO-RE probe and consumes flow events.
 // Sample() uses delete-after-read: each call returns connections observed
 // since the previous call, so counters are per-interval, never cumulative.
+// TCX byte accounting is best-effort: if TCX attach fails (old kernel),
+// the tracepoint still reports connections and PIDs, bytes stay zero.
 type fullTracer struct {
-	mu     sync.Mutex
-	coll   *ebpf.Collection
-	tp     link.Link
-	flows  *ebpf.Map
-	reason string
-	closed bool
+	mu      sync.Mutex
+	coll    *ebpf.Collection
+	tp      link.Link
+	flows   *ebpf.Map
+	tcx     map[tcxKey]link.Link
+	reason  string
+	tcxNote string
+	closed  bool
+}
+
+// tcxKey identifies one direction attachment on one interface.
+type tcxKey struct {
+	ifindex int
+	ingress bool
 }
 
 func newTracer() Tracer {
@@ -80,27 +91,87 @@ func loadFull() (*fullTracer, error) {
 		coll.Close()
 		return nil, fmt.Errorf("map flows not found in objects: %w", errMissingProg)
 	}
-	return &fullTracer{
+	t := &fullTracer{
 		coll: coll, tp: tp, flows: flows,
-		reason: "eBPF tracepoint active (sock/inet_sock_set_state, consume-per-interval)",
-	}, nil
+		tcx: map[tcxKey]link.Link{},
+	}
+	t.reason = "eBPF tracepoint active (sock/inet_sock_set_state, consume-per-interval)"
+	t.tcxNote = t.syncTCX()
+	return t, nil
+}
+
+// syncTCX attaches TCX byte counters to every UP interface (best-effort) and
+// detaches interfaces that disappeared (veth churn). Returns a reason suffix:
+// empty when all attachments hold, otherwise the first failure. Callers must
+// hold t.mu; it re-runs on every Sample so new interfaces join within one
+// interval.
+func (t *fullTracer) syncTCX() string {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return fmt.Sprintf("; TCX bytes unavailable (list interfaces: %v)", err)
+	}
+	alive := map[int]bool{}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+		alive[iface.Index] = true
+		for _, dir := range []struct {
+			ingress bool
+			prog    string
+			attach  ebpf.AttachType
+		}{
+			{false, "count_egress", ebpf.AttachTCXEgress},
+			{true, "count_ingress", ebpf.AttachTCXIngress},
+		} {
+			key := tcxKey{ifindex: iface.Index, ingress: dir.ingress}
+			if _, ok := t.tcx[key]; ok {
+				continue
+			}
+			prog := t.coll.Programs[dir.prog]
+			if prog == nil {
+				return fmt.Sprintf("; TCX bytes unavailable (program %s missing: %v)", dir.prog, errMissingProg)
+			}
+			l, err := link.AttachTCX(link.TCXOptions{
+				Interface: iface.Index,
+				Program:   prog,
+				Attach:    dir.attach,
+			})
+			if err != nil {
+				return fmt.Sprintf("; TCX bytes unavailable on %s: %v", iface.Name, err)
+			}
+			t.tcx[key] = l
+		}
+	}
+	for key, l := range t.tcx {
+		if !alive[key.ifindex] {
+			_ = l.Close()
+			delete(t.tcx, key)
+		}
+	}
+	if len(t.tcx) == 0 {
+		return "; TCX bytes unavailable (no UP interfaces)"
+	}
+	return " + TCX byte accounting"
 }
 
 func (t *fullTracer) Enabled() bool { return true }
 func (t *fullTracer) Reason() string {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return t.reason
+	return t.reason + t.tcxNote
 }
 
 // Sample drains the flows map (two-pass: collect then delete, so iteration
 // is never mutated mid-walk) and converts entries to the shared Flow schema.
+// It also resyncs TCX attachments so new interfaces join within one interval.
 func (t *fullTracer) Sample() ([]netmon.Flow, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.closed {
 		return nil, fmt.Errorf("eBPF tracer closed: %w", errClosed)
 	}
+	t.tcxNote = t.syncTCX()
 	var keys []FlowKey
 	var vals []FlowVal
 	it := t.flows.Iterate()
@@ -136,6 +207,10 @@ func (t *fullTracer) Close() error {
 	if err := t.tp.Close(); err != nil {
 		t.coll.Close()
 		return fmt.Errorf("detach tracepoint: %w", err)
+	}
+	for key, l := range t.tcx {
+		_ = l.Close()
+		delete(t.tcx, key)
 	}
 	t.coll.Close()
 	return nil

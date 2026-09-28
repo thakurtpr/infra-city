@@ -1,11 +1,14 @@
 # eBPF design
 
 Probes (`ebpf/sock-trace.bpf.c`): `inet_sock_set_state` tracepoint fires on
-`TCP_ESTABLISHED`. Key = (saddr, daddr, sport, dport, family, proto);
-value adds (cumulative conns, last-seen ns, pid, comm). Userspace consumes
-entries delete-after-read, so each sample reports connections per interval.
-IPs resolve to pods via the discovery pod-IP map; `Process` carries
-`comm(pid)` for the owning process.
+`TCP_ESTABLISHED`. Key = (saddr, daddr, sport, dport, family, proto) with the
+local endpoint first; value adds (cumulative conns, last-seen ns, bytes
+tx/rx, pid, comm). TCX ingress/egress programs add whole-frame wire bytes to
+keys the tracepoint created (a miss = pre-existing connection with no PID,
+ignored). Userspace consumes entries delete-after-read, so each sample
+reports per-interval counts. IPs resolve to pods via the discovery pod-IP
+map; `Process` carries `comm(pid)`; edge `bytesPerSec` is measured, not
+synthesized.
 
 ## CO-RE: compile once, run everywhere (with BTF)
 
@@ -61,5 +64,5 @@ curl localhost:8080/api/self | jq .ebpfEnabled
 
 ## Roadmap
 
-- TC egress accounting for per-flow bytes (today: connection counts + PID).
 - cgroup-id → container → pod attribution (today: IP→pod map + `comm(pid)`).
+- IPv6 extension-header walk + 802.1Q-tagged parsing (skipped in v1).

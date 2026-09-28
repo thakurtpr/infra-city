@@ -28,6 +28,8 @@ type FlowKey struct {
 type FlowVal struct {
 	Conns    uint64
 	LastSeen uint64
+	BytesTx  uint64
+	BytesRx  uint64
 	Pid      uint32
 	Comm     [16]byte
 	Pad      [4]byte
@@ -80,6 +82,7 @@ func flowToNetmon(k FlowKey, v FlowVal) (f netmon.Flow, ok bool) {
 		SrcIP: src.String(), DstIP: dst.String(),
 		SrcPort: int(k.Sport), DstPort: int(k.Dport),
 		Protocol: proto, Connections: int64(v.Conns),
+		BytesTx: int64(v.BytesTx), BytesRx: int64(v.BytesRx),
 		Process: formatProcess(v.Comm, v.Pid),
 	}, true
 }
