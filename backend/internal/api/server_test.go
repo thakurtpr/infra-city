@@ -148,4 +148,29 @@ func TestIncidentsShape(t *testing.T) {
 	}
 }
 
+func TestEvictRecordsCounters(t *testing.T) {
+	// isolated instance: never touches shared srv (NewServer reuses the
+	// global Prometheus collector instead of panicking).
+	g := graph.New()
+	old := time.Now().Add(-time.Hour)
+	g.UpsertNode(model.Node{ID: "svc/ci/demo/stale", Type: model.TypeService, UpdatedAt: old})
+	s2 := NewServer(g, store.New(8), ws.NewHub(), "test-token")
+	if n, e := s2.EvictOlderThan(time.Now()); n != 1 || e != 0 {
+		t.Fatalf("evicted = %d/%d, want 1/0", n, e)
+	}
+	req := httptest.NewRequest("GET", "/api/self", nil)
+	rec := httptest.NewRecorder()
+	s2.Router().ServeHTTP(rec, req)
+	var obj map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &obj); err != nil {
+		t.Fatal(err)
+	}
+	if obj["evictedNodes"] != float64(1) || obj["evictedEdges"] != float64(0) {
+		t.Fatalf("self counters = %v", obj)
+	}
+	if _, ok := g.Get("svc/ci/demo/stale"); ok {
+		t.Fatal("stale node survived eviction")
+	}
+}
+
 var _ = http.StatusOK

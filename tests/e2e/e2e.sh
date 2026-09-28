@@ -56,7 +56,7 @@ jq_has risk "$BASE/api/risk/service%2Fproduction%2Fpayments%2Fpayments" "'score'
 jq_has explain "$BASE/api/explain?target=service%2Fproduction%2Ffrontend%2Fcheckout" "'explanation' in d and len(d['explanation'])>20"
 jq_has search "$BASE/api/search?q=payments" "len(d)>=2"
 jq_has search-qualified "$BASE/api/search?q=svc%3Acheckout" "len(d)>=1"
-jq_has self "$BASE/api/self" "d['graphNodes']>30 and 'wsConnections' in d"
+jq_has self "$BASE/api/self" "d['graphNodes']>30 and 'wsConnections' in d and 'evictedNodes' in d and 'evictedEdges' in d"
 sleep 2
 jq_has snapshots "$BASE/api/snapshots" "len(d)>=1"
 

@@ -32,6 +32,10 @@ confidence = f(request volume, connection stability). UI surfaces the score.
 ## Scaling
 In-memory graph + snapshot ring today; PostgreSQL + TimescaleDB tomorrow behind
 the same store interface. Edge aggregation (127 flows → 1 road) keeps WebGL load flat.
+Graph GC (`--graph-ttl`, default 5m) evicts entries no report refreshed — dead
+flows and deleted workloads stop haunting the city and memory stays bounded.
+Snapshots already taken keep history for time travel; demo mode heartbeats its
+whole world every 2s so the synthetic city never self-evicts.
 
 ## Live signal vs demo mode
 The unprivileged agent reads its own network namespace (`/proc/net/tcp{,6}`),

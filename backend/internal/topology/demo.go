@@ -126,6 +126,21 @@ func DemoTrafficLoop(ctx context.Context, g *graph.Graph, hub *ws.Hub) {
 				e.UpdatedAt = time.Now()
 				g.UpsertEdge(e)
 			}
+			// heartbeat: a live agent re-reports its whole world every
+			// interval; the demo must do the same or graph TTL eviction
+			// would eat nodes and non-network edges between seeds.
+			now := time.Now()
+			for _, n := range g.Nodes("", "", "") {
+				n.UpdatedAt = now
+				g.UpsertNode(n)
+			}
+			for _, e := range g.Edges("", "") {
+				if e.Type == model.EdgeNetwork {
+					continue // already jittered above
+				}
+				e.UpdatedAt = now
+				g.UpsertEdge(e)
+			}
 			// occasionally broadcast a metric update sample
 			if len(edges) > 0 {
 				pick := edges[r.Intn(len(edges))]

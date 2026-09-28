@@ -33,6 +33,8 @@ type Server struct {
 	ingestTotal   atomic.Int64
 	ingestLatency prometheus.Histogram
 	eventsDropped atomic.Int64
+	evictedNodes  atomic.Int64
+	evictedEdges  atomic.Int64
 	changes       []model.Change
 	changesMu     sync.RWMutex
 	authToken     string
@@ -362,8 +364,18 @@ func (s *Server) selfStats(w http.ResponseWriter, _ *http.Request) {
 		"graphNodes": n, "graphEdges": e,
 		"wsConnections": conns, "wsDropped": dropped,
 		"ingestTotal": s.ingestTotal.Load(), "eventsDropped": s.eventsDropped.Load(),
+		"evictedNodes": s.evictedNodes.Load(), "evictedEdges": s.evictedEdges.Load(),
 		"uptime": time.Since(s.startTime).String(),
 	})
+}
+
+// EvictOlderThan garbage-collects graph entries not refreshed since cutoff
+// (see graph.EvictOlderThan) and records cumulative counters for /api/self.
+func (s *Server) EvictOlderThan(cutoff time.Time) (nodes, edges int) {
+	nodes, edges = s.graph.EvictOlderThan(cutoff)
+	s.evictedNodes.Add(int64(nodes))
+	s.evictedEdges.Add(int64(edges))
+	return nodes, edges
 }
 
 // ---- helpers ----

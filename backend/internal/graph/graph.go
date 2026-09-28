@@ -136,6 +136,48 @@ func (g *Graph) UpsertEdge(e model.Edge) bool {
 	return true
 }
 
+// EvictOlderThan deletes edges (and then orphaned nodes) not refreshed
+// since cutoff, and prunes emptied adjacency buckets so memory stays bounded.
+// Nodes with live incident edges are kept even when stale (degree guard).
+// Entries with zero UpdatedAt are treated as timeless and kept — snapshot
+// replays must not be garbage-collected from under the reader.
+// Returns evicted node/edge counts. Silent by design: eviction is GC, not a
+// topology event (no changes-feed entries, no WS fan-out).
+func (g *Graph) EvictOlderThan(cutoff time.Time) (evNodes, evEdges int) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	for id, e := range g.edges {
+		if e.UpdatedAt.IsZero() || !e.UpdatedAt.Before(cutoff) {
+			continue
+		}
+		delete(g.edges, id)
+		if m, ok := g.out[e.Source]; ok {
+			delete(m, id)
+			if len(m) == 0 {
+				delete(g.out, e.Source)
+			}
+		}
+		if m, ok := g.in[e.Destination]; ok {
+			delete(m, id)
+			if len(m) == 0 {
+				delete(g.in, e.Destination)
+			}
+		}
+		evEdges++
+	}
+	for id, n := range g.nodes {
+		if n.UpdatedAt.IsZero() || !n.UpdatedAt.Before(cutoff) {
+			continue
+		}
+		if len(g.out[id]) > 0 || len(g.in[id]) > 0 {
+			continue
+		}
+		delete(g.nodes, id)
+		evNodes++
+	}
+	return evNodes, evEdges
+}
+
 // RemoveNode deletes a node and all incident edges.
 func (g *Graph) RemoveNode(id string) {
 	g.mu.Lock()

@@ -27,6 +27,7 @@ func main() {
 	authToken := flag.String("auth-token", "", "require Bearer token on /api/v1/ingest (empty = open, dev only)")
 	demo := flag.Bool("demo", false, "seed synthetic demo city on boot")
 	snapEvery := flag.Duration("snapshots-every", 60*time.Second, "snapshot interval for time travel")
+	graphTTL := flag.Duration("graph-ttl", 5*time.Minute, "evict graph entries not refreshed within this long (0 disables)")
 	flag.Parse()
 
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
@@ -62,6 +63,32 @@ func main() {
 	// demo traffic ticker: keeps the city alive without a cluster
 	if *demo || os.Getenv("INFRACITY_DEMO") == "1" {
 		go topology.DemoTrafficLoop(ctx, g, hub)
+	}
+
+	// graph GC: drop edges/nodes no report refreshed within TTL, so dead
+	// flows and deleted workloads stop haunting the city (and memory).
+	// Snapshots already taken keep history for time travel.
+	if *graphTTL > 0 {
+		go func() {
+			interval := *graphTTL / 2
+			if interval < 10*time.Second {
+				interval = 10 * time.Second
+			}
+			if interval > 5*time.Minute {
+				interval = 5 * time.Minute
+			}
+			t := time.NewTicker(interval)
+			defer t.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-t.C:
+					n, e := srv.EvictOlderThan(time.Now().Add(-*graphTTL))
+					log.Debug().Int("nodes", n).Int("edges", e).Msg("graph eviction")
+				}
+			}
+		}()
 	}
 
 	httpSrv := &http.Server{
