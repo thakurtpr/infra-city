@@ -12,3 +12,6 @@ frontend/dist/
 /tmp/
 
 *.tsbuildinfo
+
+# Compiled eBPF objects (rebuilt via `make ebpf`, never committed).
+agent/internal/ebpf/bpf/*.o

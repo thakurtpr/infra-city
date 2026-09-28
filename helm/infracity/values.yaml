@@ -10,6 +10,7 @@ backend:
 agent:
   image: ghcr.io/infracity/agent:0.1.0
   privilegedEBPF: false # true enables hostNetwork+privileged for full eBPF fidelity
+  ebpfDebug: false # true appends the kernel verifier log to eBPF load failures
   interval: 15s
   resources: { requests: { cpu: 50m, memory: 64Mi }, limits: { cpu: 300m, memory: 256Mi } }
 frontend:

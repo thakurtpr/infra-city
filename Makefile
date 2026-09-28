@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
-.PHONY: dev demo backend frontend agent test lint build docker helm chaos-latency chaos-errors kill-pod scale-api
+.PHONY: dev demo backend frontend agent test lint build docker helm chaos-latency chaos-errors kill-pod scale-api ebpf agent-full
 
 BACKEND_ADDR ?= :8080
+EBPF_BUILDER ?= infracity/ebpf-builder:24.04
+EBPF_OBJ := agent/internal/ebpf/bpf/sock-trace.bpf.o
 
 # Local dev: backend in demo mode + frontend hot reload (no cluster needed).
 dev:
@@ -21,6 +23,17 @@ frontend:
 
 agent:
 	go run ./agent/cmd --backend=http://localhost:8080 --cluster=dev --insecure
+
+# eBPF: compile the CO-RE probe with the pinned toolchain (no host clang
+# needed), then build a linux agent with the real loader. Default builds
+# never need this; the DaemonSet does (agent.privilegedEBPF=true).
+ebpf:
+	docker build -t $(EBPF_BUILDER) -f ebpf/Dockerfile.builder ebpf/
+	docker run --rm -v "$(CURDIR)/ebpf:/src:ro" -v "$(CURDIR)/agent/internal/ebpf/bpf:/out" $(EBPF_BUILDER) \
+		bash -c "clang -O2 -g -target bpf -c /src/sock-trace.bpf.c -o /out/sock-trace.bpf.o"
+
+agent-full: ebpf
+	GOOS=linux go build -tags ebpf_full -o bin/agent-ebpf ./agent/cmd
 
 test:
 	go test ./... 2>&1 | tail -20

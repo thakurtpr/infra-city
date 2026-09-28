@@ -13,6 +13,9 @@ spec:
       serviceAccountName: {{ .Release.Name }}-agent
       {{- if .Values.agent.privilegedEBPF }}
       hostNetwork: true # eBPF socket tracing needs host netns
+      # hostNetwork pods use the node's resolver by default, which cannot
+      # resolve Services; ClusterFirstWithHostNet restores cluster DNS.
+      dnsPolicy: ClusterFirstWithHostNet
       {{- end }}
       containers:
         - name: agent
@@ -22,18 +25,33 @@ spec:
             - { name: INFRACITY_CLUSTER, value: {{ .Values.clusterId | quote }} }
             - name: NODE_NAME
               valueFrom: { fieldRef: { fieldPath: spec.nodeName } }
+            - { name: INFRACITY_EBPF_DEBUG, value: {{ .Values.agent.ebpfDebug | quote }} }
             {{- if .Values.backend.authToken }}
             - { name: INFRACITY_TOKEN, value: {{ .Values.backend.authToken | quote }} }
             {{- end }}
           ports: [{ name: health, containerPort: 8081 }]
           {{- if .Values.agent.privilegedEBPF }}
-          securityContext: { privileged: true, capabilities: { add: [BPF, NET_ADMIN, SYS_RESOURCE] } }
+          # tracefs/debugfs from the host mount namespace: tracepoint attach
+          # needs them; unprivileged installs mount nothing (least privilege).
+          volumeMounts:
+            - { name: tracing, mountPath: /sys/kernel/tracing }
+            - { name: debugfs, mountPath: /sys/kernel/debug }
+          {{- end }}
+          {{- if .Values.agent.privilegedEBPF }}
+          # eBPF socket tracing needs uid 0 + caps (see ebpf/README.md).
+          # Pair with the agent-ebpf image target (distroless root).
+          securityContext: { privileged: true, runAsUser: 0, runAsNonRoot: false, capabilities: { add: [BPF, NET_ADMIN, SYS_RESOURCE] } }
           {{- else }}
           securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, runAsNonRoot: true, runAsUser: 65532, capabilities: { drop: [ALL] } }
           {{- end }}
           livenessProbe: { httpGet: { path: /health, port: 8081 }, periodSeconds: 15 }
           readinessProbe: { httpGet: { path: /ready, port: 8081 }, periodSeconds: 5 }
           resources: {{ .Values.agent.resources | toYaml | nindent 12 }}
+      {{- if .Values.agent.privilegedEBPF }}
+      volumes:
+        - { name: tracing, hostPath: { path: /sys/kernel/tracing } }
+        - { name: debugfs, hostPath: { path: /sys/kernel/debug } }
+      {{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment

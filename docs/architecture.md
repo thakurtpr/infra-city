@@ -38,6 +38,8 @@ The unprivileged agent reads its own network namespace (`/proc/net/tcp{,6}`),
 so on a real cluster it sees node-level topology + wiring (services, endpoints,
 ingresses) but almost no pod-to-service L7 flows — the command center honestly
 reports `— L4 only` and the city renders the declared-wiring layer. Full flow
-fidelity needs the privileged eBPF path (`agent.privilegedEBPF=true`, objects
-per `ebpf/README.md`). `make dev` / demo mode synthesizes traffic so the
-traffic/incident/canary story is explorable with zero cluster.
+fidelity needs the privileged eBPF path (`agent.privilegedEBPF=true` plus an
+agent built with `make agent-full`, objects per `ebpf/README.md`; requires
+node BTF, otherwise it degrades with a logged reason). `make dev` / demo mode
+synthesizes traffic so the traffic/incident/canary story is explorable with
+zero cluster.

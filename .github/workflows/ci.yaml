@@ -53,6 +53,25 @@ jobs:
       - run: npm test -- --run
       - run: npm run build
 
+  ebpf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.26", cache: true }
+      - name: Install BPF compile toolchain
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends clang llvm libbpf-dev linux-libc-dev
+      - name: Compile probe (same flags as `make ebpf`)
+        run: |
+          mkdir -p agent/internal/ebpf/bpf
+          clang -O2 -g -target bpf -c ebpf/sock-trace.bpf.c -o agent/internal/ebpf/bpf/sock-trace.bpf.o \
+            || { sudo ln -sfn /usr/include/x86_64-linux-gnu/asm /usr/include/asm && \
+                 clang -O2 -g -target bpf -c ebpf/sock-trace.bpf.c -o agent/internal/ebpf/bpf/sock-trace.bpf.o; }
+      - run: gofmt -l agent/internal/ebpf | grep . && exit 1 || echo "gofmt clean"
+      - run: GOOS=linux go build -tags ebpf_full ./...
+      - run: GOOS=linux go vet -tags ebpf_full ./agent/...
+      - run: go test -tags ebpf_full ./agent/...
+
   manifests:
     runs-on: ubuntu-latest
     steps:
