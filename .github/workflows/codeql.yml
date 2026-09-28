@@ -10,6 +10,10 @@ permissions: { contents: read }
 # 70+ min in analyze on first run.)
 jobs:
   analyze-go:
+    # Weekly deep scan only: Go analysis does not converge in push-practical
+    # time on the k8s.io dependency surface (60+ min). Per-push Go coverage
+    # is go vet + staticcheck + govulncheck (all in ci, all minutes).
+    if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
     permissions:
       security-events: write
