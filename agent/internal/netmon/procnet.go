@@ -29,6 +29,9 @@ type Flow struct {
 	BytesTx, BytesRx int64
 	Connections      int64
 	Process          string
+	// CgroupID is the kernfs inode of the owning cgroup (eBPF only, 0 from
+	// /proc). Tracepoint keys are local-first, so it attributes the SOURCE.
+	CgroupID uint64
 }
 
 // SampleProcNet parses /proc/net/tcp and /proc/net/tcp6 for established
@@ -86,12 +89,22 @@ func sampleFile(path string) ([]Flow, error) {
 }
 
 // ToEdges converts flows into model edges keyed by pod IP when the IP->pod
-// mapping is known (built from discovery pod IPs).
-func ToEdges(flows []Flow, ipToPod map[string]string, cluster string) []model.Edge {
+// mapping is known (built from discovery pod IPs). cgroupToPod (cgroup inode
+// -> pod ID, from eBPF cgroup attribution) wins for the SOURCE: tracepoint
+// keys are local-first, so the cgroup owner is always the local endpoint.
+// It resolves flows IP maps cannot (host-network pods, localhost, NAT).
+// Either map may be nil.
+func ToEdges(flows []Flow, ipToPod map[string]string, cgroupToPod map[uint64]string, cluster string) []model.Edge {
 	agg := map[string]*model.Edge{}
 	now := time.Now()
 	for _, fl := range flows {
-		src := ipToPod[fl.SrcIP]
+		src := ""
+		if fl.CgroupID != 0 {
+			src = cgroupToPod[fl.CgroupID]
+		}
+		if src == "" {
+			src = ipToPod[fl.SrcIP]
+		}
 		dst := ipToPod[fl.DstIP]
 		if src == "" {
 			src = "external/" + cluster + "/" + fl.SrcIP

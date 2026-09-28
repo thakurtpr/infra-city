@@ -3,12 +3,14 @@
 Probes (`ebpf/sock-trace.bpf.c`): `inet_sock_set_state` tracepoint fires on
 `TCP_ESTABLISHED`. Key = (saddr, daddr, sport, dport, family, proto) with the
 local endpoint first; value adds (cumulative conns, last-seen ns, bytes
-tx/rx, pid, comm). TCX ingress/egress programs add whole-frame wire bytes to
-keys the tracepoint created (a miss = pre-existing connection with no PID,
-ignored). Userspace consumes entries delete-after-read, so each sample
-reports per-interval counts. IPs resolve to pods via the discovery pod-IP
-map; `Process` carries `comm(pid)`; edge `bytesPerSec` is measured, not
-synthesized.
+tx/rx, cgroup kernfs id, pid, comm). TCX ingress/egress programs add
+whole-frame wire bytes to keys the tracepoint created (a miss =
+pre-existing connection with no PID, ignored). Userspace consumes entries
+delete-after-read, so each sample reports per-interval counts. The agent
+walks the host cgroupfs (read-only mount) mapping cgroup inodes to container
+IDs, joined to discovery container IDs — the local side of every flow
+resolves to a pod even for host-network/localhost traffic. `Process` carries
+`comm(pid)`; edge `bytesPerSec` is measured, not synthesized.
 
 ## CO-RE: compile once, run everywhere (with BTF)
 
@@ -42,9 +44,10 @@ helm install infracity helm/infracity --set agent.privilegedEBPF=true
 
 That one flag wires the whole privileged path: `hostNetwork` (node netns),
 `ClusterFirstWithHostNet` (Service DNS still works with host networking),
-`tracefs`/`debugfs` host mounts (tracepoint attach), uid 0 + `BPF/NET_ADMIN`
-caps (program load). Pair it with the `agent-ebpf` image target (distroless
-root — the default agent image is nonroot and can never load programs).
+`tracefs`/`debugfs` host mounts (tracepoint attach), read-only host cgroupfs
+(cgroup→pod attribution), uid 0 + `BPF/NET_ADMIN` caps (program load). Pair
+it with the `agent-ebpf` image target (distroless root — the default agent
+image is nonroot and can never load programs).
 
 Without privileges the agent logs the reason and samples `/proc/net/tcp` —
 same edge schema, lower fidelity (no per-process flows). `EBPFEnabled` is
@@ -64,5 +67,5 @@ curl localhost:8080/api/self | jq .ebpfEnabled
 
 ## Roadmap
 
-- cgroup-id → container → pod attribution (today: IP→pod map + `comm(pid)`).
 - IPv6 extension-header walk + 802.1Q-tagged parsing (skipped in v1).
+- Edge TTL/eviction in the backend graph (flow volume grows it unboundedly).

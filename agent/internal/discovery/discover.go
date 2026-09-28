@@ -6,6 +6,7 @@ package discovery
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -20,6 +21,9 @@ type Discoverer struct {
 	client    kubernetes.Interface
 	clusterID string
 	nodeName  string // restrict pod listing to local node when set (DaemonSet efficiency)
+	// containers maps container ID -> pod ID from the last Snapshot, for
+	// cgroup->pod attribution (see agent/internal/ebpf). Same-goroutine use.
+	containers map[string]string
 }
 
 // New returns a Discoverer; nodeName may be "" (all nodes, e.g. local dev).
@@ -98,6 +102,9 @@ func (d *Discoverer) Snapshot(ctx context.Context) ([]model.Node, []model.Edge, 
 	if err != nil {
 		return nil, nil, err
 	}
+	// Fresh container view each interval: IDs are never reused, but dropping
+	// deleted pods keeps attribution honest.
+	d.containers = map[string]string{}
 	for _, p := range podList.Items {
 		restarts := int32(0)
 		for _, cs := range p.Status.ContainerStatuses {
@@ -105,6 +112,16 @@ func (d *Discoverer) Snapshot(ctx context.Context) ([]model.Node, []model.Edge, 
 		}
 		phase := string(p.Status.Phase)
 		podID := model.IDFor(model.TypePod, d.clusterID, p.Namespace, p.Name)
+		for _, cs := range p.Status.ContainerStatuses {
+			if id := normalizeContainerID(cs.ContainerID); id != "" {
+				d.containers[id] = podID
+			}
+		}
+		for _, cs := range p.Status.InitContainerStatuses {
+			if id := normalizeContainerID(cs.ContainerID); id != "" {
+				d.containers[id] = podID
+			}
+		}
 		add(model.Node{
 			ID: podID, Type: model.TypePod, Namespace: p.Namespace, Name: p.Name,
 			Status: phase, Labels: p.Labels, NodeName: p.Spec.NodeName, IP: p.Status.PodIP,
@@ -133,4 +150,19 @@ func ownerRef(refs []metav1.OwnerReference) string {
 		return ""
 	}
 	return refs[0].Kind + "/" + refs[0].Name
+}
+
+// normalizeContainerID strips the runtime scheme ("containerd://<id>") to the
+// raw ID used in cgroup paths. Empty stays empty (pending containers).
+func normalizeContainerID(id string) string {
+	if i := strings.LastIndex(id, "://"); i >= 0 {
+		return id[i+3:]
+	}
+	return id
+}
+
+// ContainerPods returns container ID -> pod ID from the last Snapshot.
+// Nil before the first Snapshot; the map is reused, do not mutate.
+func (d *Discoverer) ContainerPods() map[string]string {
+	return d.containers
 }

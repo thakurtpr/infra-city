@@ -77,12 +77,16 @@ struct flow_key {
 
 /* Must match Go agent/internal/ebpf.FlowVal byte-for-byte, including the
  * explicit trailing pad: cilium/ebpf decodes field-by-field and rejects
- * values with unconsumed trailing bytes. */
+ * values with unconsumed trailing bytes. cgroup_id is the kernfs inode of
+ * the owning cgroup — userspace maps it to container->pod by walking the
+ * cgroupfs (same inode numbers host-wide), no PID lifetime race. First
+ * connection wins (like pid/comm): later bumps keep the original owner. */
 struct flow_val {
 	__u64 conns;
 	__u64 last_seen_ns;
 	__u64 bytes_tx;
 	__u64 bytes_rx;
+	__u64 cgroup_id;
 	__u32 pid;
 	char comm[16];
 	__u8 pad[4];
@@ -154,6 +158,7 @@ int trace_tcp_state(struct inet_sock_set_state_args *ctx)
 	nv.conns = 1;
 	nv.last_seen_ns = bpf_ktime_get_ns();
 	nv.pid = bpf_get_current_pid_tgid() >> 32;
+	nv.cgroup_id = bpf_get_current_cgroup_id();
 	bpf_get_current_comm(&nv.comm, sizeof(nv.comm));
 	bpf_map_update_elem(&flows, &key, &nv, BPF_NOEXIST);
 	return 0;
@@ -261,6 +266,6 @@ int count_ingress(struct __sk_buff *skb)
 }
 
 _Static_assert(sizeof(struct flow_key) == 40, "flow_key must be 40 bytes");
-_Static_assert(sizeof(struct flow_val) == 56, "flow_val must be 56 bytes");
+_Static_assert(sizeof(struct flow_val) == 64, "flow_val must be 64 bytes");
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";

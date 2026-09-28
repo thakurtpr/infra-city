@@ -24,8 +24,17 @@ func fakeClient() *fake.Clientset {
 				Labels:          map[string]string{"app": "api"},
 				OwnerReferences: []metav1.OwnerReference{{Kind: "ReplicaSet", Name: "api-xyz"}},
 			},
-			Spec:   corev1.PodSpec{NodeName: "n1"},
-			Status: corev1.PodStatus{Phase: corev1.PodRunning, PodIP: podIP},
+			Spec: corev1.PodSpec{NodeName: "n1"},
+			Status: corev1.PodStatus{
+				Phase: corev1.PodRunning, PodIP: podIP,
+				ContainerStatuses: []corev1.ContainerStatus{
+					{Name: "app", ContainerID: "containerd://abc123", RestartCount: 2},
+					{Name: "sidecar", ContainerID: ""}, // pending: no ID yet
+				},
+				InitContainerStatuses: []corev1.ContainerStatus{
+					{Name: "init", ContainerID: "docker://def456"},
+				},
+			},
 		},
 		&corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{Name: "api", Namespace: "demo"},
@@ -106,5 +115,42 @@ func TestSnapshotTopology(t *testing.T) {
 		if n.Metadata["password"] == "super-secret-value" {
 			t.Fatalf("secret value leaked into node %s metadata", n.ID)
 		}
+	}
+}
+
+func TestContainerPods(t *testing.T) {
+	d := New(fakeClient(), "ci", "")
+	if _, _, err := d.Snapshot(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	got := d.ContainerPods()
+	wantPod := model.IDFor(model.TypePod, "ci", "demo", "api-abc")
+	if got["abc123"] != wantPod || got["def456"] != wantPod {
+		t.Fatalf("container map = %v, want abc123+def456 -> %s", got, wantPod)
+	}
+	if len(got) != 2 {
+		t.Fatalf("container map has %d entries, want 2 (empty ID skipped)", len(got))
+	}
+	// resnapshot with the pod gone drops stale entries
+	if err := d.client.CoreV1().Pods("demo").Delete(context.Background(), "api-abc", metav1.DeleteOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := d.Snapshot(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(d.ContainerPods()) != 0 {
+		t.Fatalf("stale entries kept: %v", d.ContainerPods())
+	}
+}
+
+func TestNormalizeContainerID(t *testing.T) {
+	if got := normalizeContainerID("containerd://abc"); got != "abc" {
+		t.Fatalf("got %q", got)
+	}
+	if got := normalizeContainerID("abc"); got != "abc" {
+		t.Fatalf("bare ID must pass through, got %q", got)
+	}
+	if got := normalizeContainerID(""); got != "" {
+		t.Fatalf("empty must stay empty, got %q", got)
 	}
 }

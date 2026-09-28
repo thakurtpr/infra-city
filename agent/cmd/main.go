@@ -91,7 +91,16 @@ func runOnce(ctx context.Context, disc *discovery.Discoverer, tracer ebpf.Tracer
 				ipToPod[n.IP] = n.ID
 			}
 		}
-		edges = append(edges, netmon.ToEdges(flows, ipToPod, cluster)...)
+		// cgroup->pod attribution (eBPF only): inode walk of the host
+		// cgroupfs joined to discovery container IDs. Best-effort — any
+		// failure keeps IP-based attribution.
+		cgroupToPod := map[uint64]string{}
+		if inos, err := ebpf.CgroupContainerIDs(ebpf.CgroupRoot()); err != nil {
+			log.Debug().Err(err).Msg("cgroup walk failed, using IP attribution")
+		} else {
+			cgroupToPod = ebpf.ResolveCgroupPods(inos, disc.ContainerPods())
+		}
+		edges = append(edges, netmon.ToEdges(flows, ipToPod, cgroupToPod, cluster)...)
 	}
 	sent, dropped := exp.Stats()
 	rep := model.AgentReport{

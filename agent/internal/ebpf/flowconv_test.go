@@ -13,16 +13,16 @@ func TestFlowLayoutMatchesC(t *testing.T) {
 	if got := unsafe.Sizeof(FlowKey{}); got != 40 {
 		t.Fatalf("sizeof FlowKey = %d, want 40", got)
 	}
-	if got := unsafe.Sizeof(FlowVal{}); got != 56 {
-		t.Fatalf("sizeof FlowVal = %d, want 56", got)
+	if got := unsafe.Sizeof(FlowVal{}); got != 64 {
+		t.Fatalf("sizeof FlowVal = %d, want 64", got)
 	}
 	var k FlowKey
 	if off := unsafe.Offsetof(k.Dport); off != 34 {
 		t.Fatalf("Dport offset = %d, want 34", off)
 	}
 	var v FlowVal
-	if off := unsafe.Offsetof(v.Comm); off != 36 {
-		t.Fatalf("Comm offset = %d, want 36", off)
+	if off := unsafe.Offsetof(v.Comm); off != 44 {
+		t.Fatalf("Comm offset = %d, want 44", off)
 	}
 	if off := unsafe.Offsetof(v.BytesTx); off != 16 {
 		t.Fatalf("BytesTx offset = %d, want 16", off)
@@ -32,8 +32,8 @@ func TestFlowLayoutMatchesC(t *testing.T) {
 	if got := binary.Size(FlowKey{}); got != 40 {
 		t.Fatalf("encoded FlowKey = %d bytes, want 40", got)
 	}
-	if got := binary.Size(FlowVal{}); got != 56 {
-		t.Fatalf("encoded FlowVal = %d bytes, want 56", got)
+	if got := binary.Size(FlowVal{}); got != 64 {
+		t.Fatalf("encoded FlowVal = %d bytes, want 64", got)
 	}
 }
 
@@ -41,7 +41,7 @@ func TestFlowToNetmonV4(t *testing.T) {
 	k := FlowKey{Family: 2, Proto: 6, Sport: 1234, Dport: 5432}
 	k.Saddr[0], k.Saddr[1], k.Saddr[2], k.Saddr[3] = 10, 0, 0, 1
 	k.Daddr[0], k.Daddr[1], k.Daddr[2], k.Daddr[3] = 10, 0, 0, 2
-	v := FlowVal{Conns: 3, Pid: 42, BytesTx: 1500, BytesRx: 800}
+	v := FlowVal{Conns: 3, Pid: 42, BytesTx: 1500, BytesRx: 800, CgroupID: 12345}
 	copy(v.Comm[:], "postgres")
 	f, ok := flowToNetmon(k, v)
 	if !ok {
@@ -61,6 +61,9 @@ func TestFlowToNetmonV4(t *testing.T) {
 	}
 	if f.BytesTx != 1500 || f.BytesRx != 800 {
 		t.Fatalf("bytes tx/rx = %d/%d, want 1500/800", f.BytesTx, f.BytesRx)
+	}
+	if f.CgroupID != 12345 {
+		t.Fatalf("cgroup = %d, want 12345", f.CgroupID)
 	}
 }
 
