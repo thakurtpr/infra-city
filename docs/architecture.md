@@ -37,6 +37,17 @@ flows and deleted workloads stop haunting the city and memory stays bounded.
 Snapshots already taken keep history for time travel; demo mode heartbeats its
 whole world every 2s so the synthetic city never self-evicts.
 
+## Snapshot durability
+`SnapshotStore` is a hot ring (288 entries) with an optional durable
+`SnapshotBackend`. Set `--postgres-dsn` (or `INFRACITY_POSTGRES_DSN`) and
+every snapshot spills to a `snapshots` table (JSONB payloads, composite
+PK for a Timescale hypertable when the extension exists); reads fall back
+past the ring, so time travel survives restarts. Spills are fail-open
+(ring keeps serving, failures warn); a configured-but-unreachable database
+is a startup error. In Helm: `--set backend.postgresDSN=...` for dev, or a
+Secret (`kubectl create secret generic pg --from-literal=dsn=...`) with
+`--set backend.postgresExistingSecret=pg` for prod.
+
 ## Live signal vs demo mode
 The unprivileged agent reads its own network namespace (`/proc/net/tcp{,6}`),
 so on a real cluster it sees node-level topology + wiring (services, endpoints,

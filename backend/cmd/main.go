@@ -28,6 +28,7 @@ func main() {
 	demo := flag.Bool("demo", false, "seed synthetic demo city on boot")
 	snapEvery := flag.Duration("snapshots-every", 60*time.Second, "snapshot interval for time travel")
 	graphTTL := flag.Duration("graph-ttl", 5*time.Minute, "evict graph entries not refreshed within this long (0 disables)")
+	postgresDSN := flag.String("postgres-dsn", "", "durable snapshot log DSN (empty = ring only); or INFRACITY_POSTGRES_DSN")
 	flag.Parse()
 
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
@@ -35,6 +36,20 @@ func main() {
 
 	g := graph.New()
 	snaps := store.New(288)
+	dsn := *postgresDSN
+	if dsn == "" {
+		dsn = os.Getenv("INFRACITY_POSTGRES_DSN")
+	}
+	if dsn != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		be, err := store.NewPostgresBackend(ctx, dsn)
+		cancel()
+		if err != nil {
+			log.Fatal().Err(err).Msg("postgres snapshot backend configured but unreachable")
+		}
+		snaps = store.NewWithBackend(288, be)
+		defer func() { _ = snaps.Close() }()
+	}
 	hub := ws.NewHub()
 	srv := api.NewServer(g, snaps, hub, *authToken)
 

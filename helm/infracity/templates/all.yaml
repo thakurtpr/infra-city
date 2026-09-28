@@ -76,6 +76,14 @@ spec:
             {{- if .Values.backend.authToken }}
             - --auth-token={{ .Values.backend.authToken }}
             {{- end }}
+            {{- if .Values.backend.postgresDSN }}
+            - --postgres-dsn={{ .Values.backend.postgresDSN }}
+            {{- end }}
+          {{- if .Values.backend.postgresExistingSecret }}
+          env:
+            - name: INFRACITY_POSTGRES_DSN
+              valueFrom: { secretKeyRef: { name: {{ .Values.backend.postgresExistingSecret | quote }}, key: dsn } }
+          {{- end }}
           ports: [{ containerPort: 8080 }]
           livenessProbe: { httpGet: { path: /health, port: 8080 }, periodSeconds: 15 }
           readinessProbe: { httpGet: { path: /ready, port: 8080 }, periodSeconds: 5 }

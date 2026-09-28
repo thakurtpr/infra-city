@@ -6,6 +6,12 @@ backend:
   replicas: 1
   port: 8080
   authToken: "" # set via --set backend.authToken=... or existingSecret
+  # Durable snapshot log (empty = ring only). Dev: --set backend.postgresDSN=...
+  # Prod: create a Secret (kubectl create secret generic pg --from-literal=dsn=...)
+  # and set backend.postgresExistingSecret=pg (key "dsn", mounted as
+  # INFRACITY_POSTGRES_DSN). Never commit a real DSN here.
+  postgresDSN: ""
+  postgresExistingSecret: ""
   resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { cpu: 500m, memory: 512Mi } }
 agent:
   image: ghcr.io/infracity/agent:0.1.0
