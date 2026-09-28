@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/cilium/ebpf"
@@ -73,7 +74,7 @@ func loadFull() (*fullTracer, error) {
 	}
 	coll, err := ebpf.NewCollectionWithOptions(spec, opts)
 	if err != nil {
-		return nil, fmt.Errorf("load BPF objects into kernel (needs BTF + CAP_BPF): %w", err)
+		return nil, fmt.Errorf("load BPF objects into kernel (needs BTF + CAP_BPF): %w%s", err, verifierTail(err))
 	}
 	prog := coll.Programs["trace_tcp_state"]
 	if prog == nil {
@@ -220,3 +221,26 @@ var (
 	errClosed      = errors.New("tracer closed")
 	errMissingProg = errors.New("missing program or map")
 )
+
+// verifierTail appends the last lines of a cilium VerifierError (the summary
+// error string omits most of the log). Capped so the fallback reason stays a
+// log line, not a log flood.
+func verifierTail(err error) string {
+	var ve *ebpf.VerifierError
+	if !errors.As(err, &ve) || len(ve.Log) == 0 {
+		return ""
+	}
+	const maxLines = 25
+	lines := ve.Log
+	if len(lines) > maxLines {
+		lines = lines[len(lines)-maxLines:]
+	}
+	out := "\nverifier:"
+	for _, l := range lines {
+		out += "\n" + strings.TrimRight(l, "\n")
+		if len(out) > 3072 {
+			break
+		}
+	}
+	return out
+}

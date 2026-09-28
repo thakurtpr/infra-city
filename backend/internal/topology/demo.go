@@ -8,6 +8,9 @@ import (
 	"context"
 	"encoding/json"
 	"math/rand"
+	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/infracity/infracity/backend/internal/graph"
@@ -16,6 +19,11 @@ import (
 )
 
 const demoCluster = "production"
+
+// demoNodeBase/demoEdgeBase capture seed metrics so chaos (and its removal)
+// apply absolute values instead of random-walking away from the baseline.
+var demoNodeBase = map[string]model.Metrics{}
+var demoEdgeBase = map[string]model.Edge{}
 
 // SeedDemo builds: internet -> lb -> gateway -> frontend -> api -> {auth,payments,orders}
 // payments -> postgres, api -> redis, orders -> kafka.
@@ -31,6 +39,9 @@ func SeedDemo(g *graph.Graph) {
 				"infracity.io/provider":    "aws",
 			}, Metadata: extra,
 		})
+		if m != nil {
+			demoNodeBase[id] = *m
+		}
 	}
 	m := func(rps, err, p95, bps float64, cpu, mem float64) *model.Metrics {
 		return &model.Metrics{ReqPerSec: rps, ErrRate: err, LatencyMsP95: p95, BytesPerSec: bps, CPUPct: cpu, MemPct: mem,
@@ -79,11 +90,14 @@ func SeedDemo(g *graph.Graph) {
 	}
 
 	edge := func(src, dst, typ, proto string, rps, lat, bps, eps float64, dport int) {
-		g.UpsertEdge(model.Edge{
+		e := model.Edge{
 			Source: src, Destination: dst, Type: typ, Protocol: proto,
 			RequestsPerSec: rps, LatencyMs: lat, BytesPerSec: bps, ErrorsPerSec: eps,
 			DstPort: dport, Connections: int64(rps / 4), UpdatedAt: now,
-		})
+		}
+		e.ID = src + "|" + typ + "|" + dst
+		demoEdgeBase[e.ID] = e
+		g.UpsertEdge(e)
 	}
 	FE, CO := "service/production/frontend/frontend", "service/production/frontend/checkout"
 	API := "service/production/payments/api"
@@ -107,7 +121,11 @@ func SeedDemo(g *graph.Graph) {
 	edge(ORD, PG, model.EdgeNetwork, "TCP", 360, 22, 1.8e6, 0, 5432)
 }
 
-// DemoTrafficLoop jitters edge rates so the city breathes; honors chaos flags via env.
+// DemoTrafficLoop jitters edge rates so the city breathes, heartbeats the
+// whole world (TTL safety), and applies demo chaos from env when set:
+// INFRACITY_CHAOS_LATENCY_MS adds p95 to postgres + inbound edges,
+// INFRACITY_CHAOS_ERRORS_PCT sets error rate (0-100). Unset either and the
+// seed baseline is restored on the next tick — toggle mid-demo.
 func DemoTrafficLoop(ctx context.Context, g *graph.Graph, hub *ws.Hub) {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	t := time.NewTicker(2 * time.Second)
@@ -147,6 +165,64 @@ func DemoTrafficLoop(ctx context.Context, g *graph.Graph, hub *ws.Hub) {
 				b, _ := json.Marshal(model.Event{Type: model.EvMetricUpdate, Edge: &pick, Timestamp: time.Now()})
 				hub.Publish(b)
 			}
+			applyDemoChaos(g)
 		}
 	}
+}
+
+// applyDemoChaos drives the portfolio incident story from env (see
+// DemoTrafficLoop). Values apply absolute from the seed baseline, so
+// enabling, changing, and clearing flags mid-demo is deterministic.
+func applyDemoChaos(g *graph.Graph) {
+	latMs := envFloat("INFRACITY_CHAOS_LATENCY_MS")
+	errPct := envFloat("INFRACITY_CHAOS_ERRORS_PCT")
+	now := time.Now()
+	for _, n := range g.Nodes(demoCluster, "", "") {
+		if !strings.Contains(n.ID, "/postgres") || n.Metrics == nil {
+			continue
+		}
+		base, ok := demoNodeBase[n.ID]
+		if !ok {
+			continue
+		}
+		m := *n.Metrics
+		m.LatencyMsP95 = base.LatencyMsP95
+		m.ErrRate = base.ErrRate
+		if latMs > 0 {
+			m.LatencyMsP95 += latMs
+		}
+		if errPct > 0 {
+			m.ErrRate = errPct / 100
+		}
+		n.Metrics = &m
+		n.UpdatedAt = now
+		g.UpsertNode(n)
+	}
+	for _, e := range g.Edges("", model.EdgeNetwork) {
+		if !strings.Contains(e.Destination, "/postgres") {
+			continue
+		}
+		base, ok := demoEdgeBase[e.ID]
+		if !ok {
+			continue
+		}
+		e.LatencyMs = base.LatencyMs
+		e.ErrorsPerSec = base.ErrorsPerSec
+		if latMs > 0 {
+			e.LatencyMs += latMs
+		}
+		if errPct > 0 && e.RequestsPerSec > 0 {
+			e.ErrorsPerSec = e.RequestsPerSec * errPct / 100
+		}
+		e.UpdatedAt = now
+		g.UpsertEdge(e)
+	}
+}
+
+func envFloat(key string) float64 {
+	v, _ := strconv.ParseFloat(os.Getenv(key), 64)
+	if v < 0 {
+		return 0
+	}
+	return v
 }

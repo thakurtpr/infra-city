@@ -114,15 +114,16 @@ func DetectIncidents(g *graph.Graph) []model.Incident {
 	return out
 }
 
-// ExplainSlowness answers "why is this slow?" by walking upstream network
-// dependencies and ranking them by latency contribution. All claims cite
-// observed edge/node metrics.
+// ExplainSlowness answers "why is this slow?" by walking downstream network
+// dependencies (the services the target calls — edge direction is caller to
+// callee, so causes live downstream in graph terms) and ranking them by
+// latency contribution. All claims cite observed edge/node metrics.
 func ExplainSlowness(g *graph.Graph, target string) (string, []string) {
 	node, ok := g.Get(target)
 	if !ok {
 		return "Resource not found in current graph.", nil
 	}
-	upstream := g.Traverse(target, false, 4, map[string]bool{model.EdgeNetwork: true, model.EdgeDepends: true})
+	upstream := g.Traverse(target, true, 4, map[string]bool{model.EdgeNetwork: true, model.EdgeDepends: true})
 	type scored struct {
 		id  string
 		p95 float64

@@ -2,6 +2,7 @@
 package analysis
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -44,8 +45,13 @@ func TestExplainSlownessUnknownTarget(t *testing.T) {
 	if expl == "" {
 		t.Fatal("explainer must always return a sentence")
 	}
-	expl, up := ExplainSlowness(g, "service/c/d/db")
-	if expl == "" || len(up) != 1 {
+	// dependencies live downstream in graph terms (caller -> callee edges):
+	// api's slowness must blame db (p95 2500), not api itself.
+	expl, up := ExplainSlowness(g, "service/c/d/api")
+	if expl == "" || len(up) != 1 || up[0] != "service/c/d/db" {
 		t.Fatalf("explainer = %q upstream = %v", expl, up)
+	}
+	if !strings.Contains(expl, "2500ms") {
+		t.Fatalf("explainer must cite db p95: %q", expl)
 	}
 }

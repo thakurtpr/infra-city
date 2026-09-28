@@ -22,14 +22,24 @@ helm install infracity helm/infracity --set clusterId=production
 kubectl port-forward svc/infracity-ui 8080:80  # http://localhost:8080
 ```
 
+Chart defaults point at `ghcr.io/infracity/*:0.1.0`; cutting a release means
+building (`make docker`, plus `make ebpf` + `TAGS=ebpf_full` for the agent),
+pushing (needs a token with `write:packages`:
+`gh auth refresh -s write:packages`), and bumping the tags in
+`helm/infracity/values.yaml`.
+
 With a demo town + chaos scripts for portfolio walkthroughs:
 
 ```bash
 make demo           # frontend/checkout/api/auth/payments/orders/postgres/redis/kafka town + traffic
-make inject-latency # watch postgres → payments → checkout light up red
+make inject-latency # watch postgres → payments → checkout light up red (needs tc in DB image)
 make kill-pod       # watch rollout animation
 make scale-api      # watch buildings grow
 ```
+
+Zero-cluster alternative (always works): `INFRACITY_CHAOS_LATENCY_MS=2500 make dev`
+drives the same incident story from the demo backend — clear the variable to
+watch the city heal. `INFRACITY_CHAOS_ERRORS_PCT=25` faults errors instead.
 
 ## What it does
 

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-.PHONY: dev demo backend frontend agent test lint build docker helm chaos-latency chaos-errors kill-pod scale-api ebpf agent-full
+.PHONY: dev demo backend frontend agent test lint build docker helm chaos-latency chaos-errors kill-pod scale-api ebpf ebpf-test ebpf-verify agent-full
 
 BACKEND_ADDR ?= :8080
 EBPF_BUILDER ?= infracity/ebpf-builder:24.04
@@ -35,6 +35,26 @@ ebpf:
 agent-full: ebpf
 	GOOS=linux go build -tags ebpf_full -o bin/agent-ebpf ./agent/cmd
 
+# Userspace tests for the shared BPF packet parser (no kernel needed):
+# same flow_parse.h compiled for host, run against crafted frames.
+ebpf-test:
+	docker run --rm -v "$(CURDIR)/ebpf:/src:ro" $(EBPF_BUILDER) \
+		bash -c "clang -O2 -Wall -Wextra -o /tmp/test_parse /src/tests/test_parse.c && /tmp/test_parse"
+
+# Deep verifier check on the real node kernel: runs the full agent binary
+# inside the kind control-plane (native BTF/tracefs/cgroupfs, blackhole
+# backend so the live city is untouched), asserts the loader goes active,
+# then removes all traces. Catches what clang cannot (verifier precision,
+# CO-RE relocations). Needs: kind cluster up.
+KIND_NODE ?= infracity-control-plane
+ebpf-verify: ebpf
+	GOOS=linux go build -tags ebpf_full -o /tmp/infracity-agent-verify ./agent/cmd
+	docker cp /tmp/infracity-agent-verify $(KIND_NODE):/root/agent-verify
+	docker exec -d $(KIND_NODE) bash -c 'KUBECONFIG=/etc/kubernetes/admin.conf INFRACITY_BACKEND=http://127.0.0.1:1 INFRACITY_CLUSTER=verify NODE_NAME=$(KIND_NODE) INFRACITY_EBPF_DEBUG=1 nohup /root/agent-verify > /root/agent-verify.log 2>&1 & echo $$! > /root/agent-verify.pid'
+	sleep 12
+	docker exec $(KIND_NODE) grep -a "observer ready" /root/agent-verify.log | grep -q "true" && echo "ebpf active on $(KIND_NODE)"
+	docker exec $(KIND_NODE) bash -c 'kill $$(cat /root/agent-verify.pid); rm -f /root/agent-verify /root/agent-verify.log /root/agent-verify.pid'
+
 test:
 	go test ./... 2>&1 | tail -20
 	cd frontend && (npm run build 2>&1 | tail -5)
@@ -49,9 +69,9 @@ build:
 	cd frontend && npm run build
 
 docker:
-	docker build -t infracity/backend:0.1.0 -f Dockerfile --target backend .
-	docker build -t infracity/agent:0.1.0 -f Dockerfile --target agent .
-	docker build -t infracity/frontend:0.1.0 -f Dockerfile.frontend .
+	docker build -t infracity/backend:0.2.0 -f Dockerfile --target backend .
+	docker build -t infracity/agent:0.2.0 -f Dockerfile --target agent .
+	docker build -t infracity/frontend:0.2.0 -f Dockerfile.frontend .
 
 helm:
 	helm lint helm/infracity
@@ -66,8 +86,10 @@ demo:
 	@echo "UI: kubectl port-forward svc/infracity-ui 8080:80"
 
 # Portfolio chaos scripts (inject failures to watch the city react).
+# inject-latency needs tc in the DB image (stock postgres:alpine has none);
+# the guaranteed path is demo-mode chaos: INFRACITY_CHAOS_LATENCY_MS=2500 make dev.
 inject-latency:
-	kubectl exec -n demo deploy/postgres -- tc qdisc add dev eth0 root netem delay 400ms || echo "demo postgres not found; run make demo first"
+	kubectl exec -n demo postgres-0 -- tc qdisc add dev eth0 root netem delay 400ms || echo "tc unavailable (postgres is a StatefulSet without iproute2); use INFRACITY_CHAOS_LATENCY_MS=2500 make dev"
 
 inject-errors:
 	kubectl patch -n demo deploy/api --patch '{"spec":{"template":{"metadata":{"annotations":{"chaos":"errors"}}}}}' || echo "run make demo first"

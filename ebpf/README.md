@@ -6,7 +6,11 @@ local endpoint first; value adds (cumulative conns, last-seen ns, bytes
 tx/rx, cgroup kernfs id, pid, comm). TCX ingress/egress programs add
 whole-frame wire bytes to keys the tracepoint created (a miss =
 pre-existing connection with no PID, ignored). Userspace consumes entries
-delete-after-read, so each sample reports per-interval counts. The agent
+delete-after-read, so each sample reports per-interval counts. The packet
+parser (`flow_parse.h`, shared with `tests/test_parse.c`) handles Ethernet +
+single/double VLAN tags + IPv4/IPv6 + TCP/UDP, walking IPv6 extension headers
+(hop-by-hop, routing, first-fragment, AH, dest-opts, mobility); ESP, unknown
+headers, and tail fragments are skipped. The agent
 walks the host cgroupfs (read-only mount) mapping cgroup inodes to container
 IDs, joined to discovery container IDs — the local side of every flow
 resolves to a pod even for host-network/localhost traffic. `Process` carries
@@ -67,5 +71,5 @@ curl localhost:8080/api/self | jq .ebpfEnabled
 
 ## Roadmap
 
-- IPv6 extension-header walk + 802.1Q-tagged parsing (skipped in v1).
-- Edge TTL/eviction in the backend graph (flow volume grows it unboundedly).
+- Persistent graph store (PostgreSQL + TimescaleDB behind the store
+  interface); the in-memory graph + TTL carries demos and small clusters.
