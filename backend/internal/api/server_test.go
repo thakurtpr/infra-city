@@ -155,4 +155,48 @@ func TestEvictRecordsCounters(t *testing.T) {
 	}
 }
 
+func TestAgentStatusRecordedAndPruned(t *testing.T) {
+	g := graph.New()
+	s2 := NewServer(g, store.New(8), ws.NewHub(), "test-token")
+	rep := model.AgentReport{
+		ClusterID: "edge", Timestamp: time.Now().UnixNano(),
+		Stats: model.AgentStats{EBPFEnabled: true, FlowsPerSec: 12},
+	}
+	body, _ := json.Marshal(rep)
+	req := httptest.NewRequest("POST", "/api/v1/ingest", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer test-token")
+	rec := httptest.NewRecorder()
+	s2.Router().ServeHTTP(rec, req)
+	if rec.Code != 202 {
+		t.Fatalf("ingest = %d, want 202", rec.Code)
+	}
+	req = httptest.NewRequest("GET", "/api/self", nil)
+	rec = httptest.NewRecorder()
+	s2.Router().ServeHTTP(rec, req)
+	var obj map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &obj); err != nil {
+		t.Fatal(err)
+	}
+	agents, ok := obj["agents"].([]any)
+	if !ok || len(agents) != 1 {
+		t.Fatalf("agents = %v", obj["agents"])
+	}
+	a := agents[0].(map[string]any)
+	if a["clusterId"] != "edge" || a["ebpfEnabled"] != true || a["flowsPerSec"] != float64(12) {
+		t.Fatalf("agent status = %v", a)
+	}
+	// silence for longer than TTL prunes the entry
+	s2.EvictOlderThan(time.Now().Add(time.Hour))
+	req = httptest.NewRequest("GET", "/api/self", nil)
+	rec = httptest.NewRecorder()
+	s2.Router().ServeHTTP(rec, req)
+	obj = nil
+	if err := json.Unmarshal(rec.Body.Bytes(), &obj); err != nil {
+		t.Fatal(err)
+	}
+	if agents, _ := obj["agents"].([]any); len(agents) != 0 {
+		t.Fatalf("silent agent not pruned: %v", agents)
+	}
+}
+
 var _ = http.StatusOK

@@ -9,7 +9,10 @@ All `GET`s return JSON; lists serialize as `[]`, never `null`.
 - `GET /ready` → `{"ready":true}`
 - `GET /metrics` → Prometheus (incl. `infracity_ingest_latency_seconds`)
 - `GET /api/self` → `graphNodes, graphEdges, wsConnections, wsDropped,
-  ingestTotal, eventsDropped, evictedNodes, evictedEdges, uptime`
+  ingestTotal, eventsDropped, evictedNodes, evictedEdges, agents[],
+  uptime`. Each agent entry: `clusterId, ebpfEnabled, flowsPerSec,
+  eventsPerSec, droppedEvents, lastSeen` — the last report heard per
+  cluster; silent clusters age out with graph TTL eviction.
 
 ## Graph
 

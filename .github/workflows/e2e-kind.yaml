@@ -51,3 +51,31 @@ jobs:
           assert {'pod','service','deployment'} <= types, types
           print('e2e graph OK:', len(d['nodes']), 'nodes,', len(d['edges']), 'edges')"
           curl -s -o /dev/null -w "backend %{http_code}\n" localhost:8080/api/clusters
+      - name: Chaos recovery (kill + scale, polled)
+        run: |
+          kubectl delete pod -n demo -l app=api --grace-period=0 --force
+          kubectl scale -n demo deploy/api --replicas=5
+          for i in $(seq 1 24); do
+            ready=$(kubectl get deploy/api -n demo -o jsonpath='{.status.readyReplicas}')
+            [ "${ready:-0}" = "5" ] && break
+            sleep 10
+          done
+          test "$(kubectl get deploy/api -n demo -o jsonpath='{.status.readyReplicas}')" = "5"
+          for i in $(seq 1 12); do
+            curl -s "localhost:8080/api/graph?cluster=kind-ci" -o /tmp/graph2.json
+            if python3 -c "
+          import json
+          d = json.load(open('/tmp/graph2.json'))
+          dep = [n for n in d['nodes'] if n['id']=='deployment/kind-ci/demo/api'][0]
+          assert dep['metrics']['replicas'] == 5, dep
+          "; then break; fi
+            sleep 10
+          done
+          python3 -c "
+          import json
+          d = json.load(open('/tmp/graph2.json'))
+          dep = [n for n in d['nodes'] if n['id']=='deployment/kind-ci/demo/api'][0]
+          assert dep['metrics']['replicas'] == 5, dep
+          print('chaos scale visible in city: replicas =', dep['metrics']['replicas'])"
+          kubectl scale -n demo deploy/api --replicas=3
+          kubectl wait --for=condition=Available deploy/api -n demo --timeout=180s

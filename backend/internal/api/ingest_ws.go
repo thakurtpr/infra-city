@@ -59,6 +59,7 @@ func (s *Server) ingest(w http.ResponseWriter, r *http.Request) {
 		s.emit(ev)
 	}
 	s.ingestTotal.Add(1)
+	s.recordAgent(rep.ClusterID, rep.Stats)
 	writeJSON(w, 202, map[string]any{"accepted": true, "created": created, "updated": updated})
 }
 

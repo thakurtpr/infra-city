@@ -62,3 +62,6 @@ host-network/localhost traffic.
 - `AgentReport` (POST `/api/v1/ingest`): `clusterId, nodeName,
   timestamp (unix nano), nodes[], edges[], events?, stats
   (eventsPerSec, flowsPerSec, droppedEvents, ebpfEnabled)`.
+- `AgentStatus` (GET `/api/self` → `agents[]`): `clusterId, ebpfEnabled,
+  flowsPerSec?, eventsPerSec?, droppedEvents?, lastSeen (unix nano)` —
+  self-observability for the observers.

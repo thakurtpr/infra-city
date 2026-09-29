@@ -172,6 +172,17 @@ type ClusterMeta struct {
 	Health      string `json:"health"` // healthy|degraded|critical
 }
 
+// AgentStatus is the last report heard from a cluster's agent(s),
+// surfaced at /api/self. Self-observability for the observers.
+type AgentStatus struct {
+	ClusterID     string  `json:"clusterId"`
+	EBPFEnabled   bool    `json:"ebpfEnabled"`
+	FlowsPerSec   float64 `json:"flowsPerSec,omitempty"`
+	EventsPerSec  float64 `json:"eventsPerSec,omitempty"`
+	DroppedEvents int64   `json:"droppedEvents,omitempty"`
+	LastSeen      int64   `json:"lastSeen"` // unix nano
+}
+
 // Dependency is an inferred service dependency with confidence.
 type Dependency struct {
 	Source     string  `json:"source"`

@@ -5,6 +5,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -35,9 +36,12 @@ type Server struct {
 	eventsDropped atomic.Int64
 	evictedNodes  atomic.Int64
 	evictedEdges  atomic.Int64
-	changes       []model.Change
-	changesMu     sync.RWMutex
-	authToken     string
+	// last report heard per cluster (agent self-observability)
+	agentsMu  sync.RWMutex
+	agents    map[string]model.AgentStatus
+	changes   []model.Change
+	changesMu sync.RWMutex
+	authToken string
 }
 
 func NewServer(g *graph.Graph, snaps *store.SnapshotStore, hub *ws.Hub, authToken string) *Server {
@@ -47,6 +51,7 @@ func NewServer(g *graph.Graph, snaps *store.SnapshotStore, hub *ws.Hub, authToke
 		hub:       hub,
 		startTime: time.Now(),
 		authToken: authToken,
+		agents:    map[string]model.AgentStatus{},
 		ingestLatency: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Name: "infracity_ingest_latency_seconds",
 			Help: "Agent ingest request latency.",
@@ -370,21 +375,54 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request) {
 func (s *Server) selfStats(w http.ResponseWriter, _ *http.Request) {
 	n, e := s.graph.Counts()
 	conns, dropped := s.hub.Stats()
+	s.agentsMu.RLock()
+	agents := make([]model.AgentStatus, 0, len(s.agents))
+	for _, a := range s.agents {
+		agents = append(agents, a)
+	}
+	s.agentsMu.RUnlock()
+	sort.Slice(agents, func(i, j int) bool { return agents[i].ClusterID < agents[j].ClusterID })
 	writeJSON(w, 200, map[string]any{
 		"graphNodes": n, "graphEdges": e,
 		"wsConnections": conns, "wsDropped": dropped,
 		"ingestTotal": s.ingestTotal.Load(), "eventsDropped": s.eventsDropped.Load(),
 		"evictedNodes": s.evictedNodes.Load(), "evictedEdges": s.evictedEdges.Load(),
+		"agents": agents,
 		"uptime": time.Since(s.startTime).String(),
 	})
 }
 
+// recordAgent remembers the last report per cluster for self-observability.
+func (s *Server) recordAgent(clusterID string, stats model.AgentStats) {
+	if clusterID == "" {
+		return
+	}
+	s.agentsMu.Lock()
+	defer s.agentsMu.Unlock()
+	s.agents[clusterID] = model.AgentStatus{
+		ClusterID:     clusterID,
+		EBPFEnabled:   stats.EBPFEnabled,
+		FlowsPerSec:   stats.FlowsPerSec,
+		EventsPerSec:  stats.EventsPerSec,
+		DroppedEvents: stats.DroppedEvents,
+		LastSeen:      time.Now().UnixNano(),
+	}
+}
+
 // EvictOlderThan garbage-collects graph entries not refreshed since cutoff
-// (see graph.EvictOlderThan) and records cumulative counters for /api/self.
+// (see graph.EvictOlderThan) and drops silent agents, recording cumulative
+// counters for /api/self.
 func (s *Server) EvictOlderThan(cutoff time.Time) (nodes, edges int) {
 	nodes, edges = s.graph.EvictOlderThan(cutoff)
 	s.evictedNodes.Add(int64(nodes))
 	s.evictedEdges.Add(int64(edges))
+	s.agentsMu.Lock()
+	for id, a := range s.agents {
+		if time.Unix(0, a.LastSeen).Before(cutoff) {
+			delete(s.agents, id)
+		}
+	}
+	s.agentsMu.Unlock()
 	return nodes, edges
 }
 

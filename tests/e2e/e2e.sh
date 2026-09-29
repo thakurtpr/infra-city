@@ -67,6 +67,7 @@ code=$(curl -s -o /tmp/ing.json -w "%{http_code}" -m 5 -X POST "$BASE/api/v1/ing
 if [ "$code" = "202" ]; then pass=$((pass+1)); echo "ok   ingest-202"; else fail=$((fail+1)); echo "FAIL ingest: $code"; fi
 jq_has ingest-visible "$BASE/api/search?q=web" "any(n['id']=='deployment/e2e/demo/web' for n in d)"
 jq_has changes-feed "$BASE/api/changes" "any('web' in c['summary'] for c in d)"
+jq_has agent-status "$BASE/api/self" "any(a['clusterId']=='e2e' for a in d['agents'])"
 
 echo "==> path explorer"
 jq_has path "$BASE/api/path?from=external%2Fproduction%2Finternet&to=database%2Fproduction%2Fdata%2Fpostgres" "len(d['path'])>=4"
