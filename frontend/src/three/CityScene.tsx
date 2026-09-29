@@ -228,7 +228,6 @@ export default function CityScene({ nodes, edges, selected, blast, mode, onSelec
       mount.removeChild(legend);
       stateRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ---- rebuild / highlight / fly ----
