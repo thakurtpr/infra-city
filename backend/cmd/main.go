@@ -28,6 +28,7 @@ func main() {
 	demo := flag.Bool("demo", false, "seed synthetic demo city on boot")
 	snapEvery := flag.Duration("snapshots-every", 60*time.Second, "snapshot interval for time travel")
 	graphTTL := flag.Duration("graph-ttl", 5*time.Minute, "evict graph entries not refreshed within this long (0 disables)")
+	snapRetain := flag.Duration("snapshot-retention", 0, "delete durable snapshots older than this (0 keeps forever)")
 	postgresDSN := flag.String("postgres-dsn", "", "durable snapshot log DSN (empty = ring only); or INFRACITY_POSTGRES_DSN")
 	flag.Parse()
 
@@ -71,6 +72,13 @@ func main() {
 			case <-t.C:
 				nodes, edges := g.Snapshot()
 				snaps.Add(nodes, edges, "periodic")
+				if *snapRetain > 0 {
+					if n, err := snaps.PruneSnapshots(time.Now().Add(-*snapRetain)); err != nil {
+						log.Warn().Err(err).Msg("snapshot retention prune failed")
+					} else if n > 0 {
+						log.Info().Int64("pruned", n).Msg("snapshot retention")
+					}
+				}
 			}
 		}
 	}()

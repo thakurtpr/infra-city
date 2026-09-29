@@ -48,7 +48,7 @@ jq_has graph-cluster-filter "$BASE/api/graph?cluster=production" "len(d['nodes']
 jq_has graph-empty-cluster "$BASE/api/graph?cluster=nope" "len(d['nodes'])==0"
 jq_has clusters "$BASE/api/clusters" "any(c['id']=='production' for c in d)"
 jq_has namespaces "$BASE/api/namespaces?cluster=production" "len(d)>=3"
-jq_has command-metrics "$BASE/api/metrics" "d['requestsPerSec']>1000 and d['pods']>0"
+jq_has command-metrics "$BASE/api/metrics" "d['requestsPerSec']>1000 and d['pods']>0 and d['bytesPerSec']>0"
 jq_has dependencies "$BASE/api/dependencies" "len(d)>5 and all(x['confidence']>0 for x in d)"
 jq_has incidents-shape "$BASE/api/incidents" "isinstance(d,list)"
 jq_has blast "$BASE/api/blast/service%2Fproduction%2Fpayments%2Fpayments" "len(d['downstream'])>=1"

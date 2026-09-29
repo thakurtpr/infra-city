@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/infracity/infracity/pkg/model"
 )
@@ -48,6 +49,40 @@ func (f *fakeBackend) List(_ context.Context) ([]model.Snapshot, error) {
 func (f *fakeBackend) Close() error {
 	f.closed = true
 	return nil
+}
+
+func (f *fakeBackend) PruneBefore(_ context.Context, cutoff time.Time) (int64, error) {
+	var kept []model.Snapshot
+	var n int64
+	for _, s := range f.stored {
+		if s.Timestamp.Before(cutoff) {
+			n++
+			continue
+		}
+		kept = append(kept, s)
+	}
+	f.stored = kept
+	return n, nil
+}
+
+func TestPruneSnapshots(t *testing.T) {
+	fb := &fakeBackend{}
+	s := NewWithBackend(8, fb)
+	old := model.Snapshot{ID: "old", Timestamp: time.Now().Add(-time.Hour)}
+	fb.stored = []model.Snapshot{old}
+	s.Add(nil, nil, "new")
+	n, err := s.PruneSnapshots(time.Now().Add(-time.Minute))
+	if err != nil || n != 1 {
+		t.Fatalf("pruned = %d %v, want 1", n, err)
+	}
+	if _, ok := s.Get("old"); ok {
+		t.Fatal("pruned snapshot must miss everywhere")
+	}
+	// ring-only store prunes nothing
+	n, err = New(8).PruneSnapshots(time.Now())
+	if err != nil || n != 0 {
+		t.Fatalf("ring-only prune = %d %v, want 0", n, err)
+	}
 }
 
 func TestAddSpillsToBackend(t *testing.T) {

@@ -229,6 +229,16 @@ func (s *Server) getMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 	edges := s.graph.Edges(r.URL.Query().Get("cluster"), model.EdgeNetwork)
 	flows = len(edges)
+	// Edge bytes are measured on the wire (eBPF/TCX consume-per-interval);
+	// node bytes are static reports (demo seeds). Prefer measured, fall back
+	// to reported — never both (demo would double-count the same traffic).
+	edgeBps := 0.0
+	for _, e := range edges {
+		edgeBps += e.BytesPerSec
+	}
+	if edgeBps > 0 {
+		bps = edgeBps
+	}
 	errRate := 0.0
 	if rps > 0 {
 		errRate = errW / rps

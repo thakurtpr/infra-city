@@ -44,7 +44,9 @@ every snapshot spills to a `snapshots` table (JSONB payloads, composite
 PK for a Timescale hypertable when the extension exists); reads fall back
 past the ring, so time travel survives restarts. Spills are fail-open
 (ring keeps serving, failures warn); a configured-but-unreachable database
-is a startup error. In Helm: `--set backend.postgresDSN=...` for dev, or a
+is a startup error. `--snapshot-retention` (e.g. `720h`) deletes durable
+snapshots older than the window on every snapshot tick (default keeps
+forever). In Helm: `--set backend.postgresDSN=...` for dev, or a
 Secret (`kubectl create secret generic pg --from-literal=dsn=...`) with
 `--set backend.postgresExistingSecret=pg` for prod.
 

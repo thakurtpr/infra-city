@@ -4,6 +4,7 @@ package store
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/infracity/infracity/pkg/model"
 )
@@ -20,5 +21,7 @@ type SnapshotBackend interface {
 	Store(ctx context.Context, snap model.Snapshot) error
 	Load(ctx context.Context, id string) (model.Snapshot, error)
 	List(ctx context.Context) ([]model.Snapshot, error)
+	// PruneBefore deletes snapshots older than cutoff, returning the count.
+	PruneBefore(ctx context.Context, cutoff time.Time) (int64, error)
 	Close() error
 }

@@ -90,6 +90,36 @@ func TestPostgresStoreFallback(t *testing.T) {
 	}
 }
 
+func TestPostgresPrune(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	be, err := NewPostgresBackend(ctx, pgDSN(t))
+	if err != nil {
+		t.Fatalf("connect+migrate: %v", err)
+	}
+	defer be.Close()
+
+	// old row inserted directly (Store always stamps now)
+	oldID := "prune-old"
+	if _, err := be.pool.Exec(ctx,
+		`INSERT INTO snapshots (id, ts, label, node_count, edge_count, nodes, edges)
+		 VALUES ($1,$2,'old',0,0,'[]','[]') ON CONFLICT (id, ts) DO NOTHING`,
+		oldID, time.Now().UTC().Add(-2*time.Hour)); err != nil {
+		t.Fatalf("seed old: %v", err)
+	}
+	n, err := be.PruneBefore(ctx, time.Now().UTC().Add(-time.Hour))
+	if err != nil || n < 1 {
+		t.Fatalf("pruned = %d %v, want >=1", n, err)
+	}
+	if _, err := be.Load(ctx, oldID); err != ErrNotFound {
+		t.Fatalf("pruned load = %v, want ErrNotFound", err)
+	}
+	n, err = be.PruneBefore(ctx, time.Now().UTC().Add(-24*time.Hour))
+	if err != nil || n != 0 {
+		t.Fatalf("fresh prune = %d %v, want 0", n, err)
+	}
+}
+
 func TestPostgresBadDSN(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -119,4 +120,13 @@ func (b *PostgresBackend) List(ctx context.Context) ([]model.Snapshot, error) {
 func (b *PostgresBackend) Close() error {
 	b.pool.Close()
 	return nil
+}
+
+// PruneBefore deletes snapshots older than cutoff (retention enforcement).
+func (b *PostgresBackend) PruneBefore(ctx context.Context, cutoff time.Time) (int64, error) {
+	tag, err := b.pool.Exec(ctx, `DELETE FROM snapshots WHERE ts < $1`, cutoff.UTC())
+	if err != nil {
+		return 0, fmt.Errorf("prune snapshots: %w", err)
+	}
+	return tag.RowsAffected(), nil
 }

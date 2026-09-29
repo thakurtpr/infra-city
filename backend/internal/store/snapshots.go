@@ -157,6 +157,20 @@ func (s *SnapshotStore) Close() error {
 	return backend.Close()
 }
 
+// PruneSnapshots deletes durable snapshots older than cutoff (retention).
+// Ring-only stores prune nothing. Returns rows removed.
+func (s *SnapshotStore) PruneSnapshots(cutoff time.Time) (int64, error) {
+	s.mu.RLock()
+	backend := s.backend
+	s.mu.RUnlock()
+	if backend == nil {
+		return 0, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return backend.PruneBefore(ctx, cutoff)
+}
+
 func newID() string {
 	var b [16]byte
 	_, _ = rand.Read(b[:])

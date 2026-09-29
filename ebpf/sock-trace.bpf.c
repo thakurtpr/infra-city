@@ -160,13 +160,29 @@ static __always_inline int count_packet(struct __sk_buff *skb, int ingress)
 	void *data_end = (void *)(long)skb->data_end;
 	struct flow_key key = {};
 	struct flow_val *vp;
+	struct flow_val nv;
 	__u64 len;
 
 	if (parse_flow_key(data, data_end, &key, ingress, &len))
 		return TCX_PASS;
 	vp = bpf_map_lookup_elem(&flows, &key);
-	if (!vp)
-		return TCX_PASS;
+	if (!vp) {
+		/* UDP has no established-state signal, so the tracepoint can never
+		 * create its keys: first packet wins. pid/comm/cgroup stay zero —
+		 * TCX runs in softirq context with no owning process — and the
+		 * agent falls back to IP attribution for these flows. TCP misses
+		 * stay ignored: untracked TCP means pre-existing connection with
+		 * no PID to attribute. */
+		if (key.proto != F_UDP)
+			return TCX_PASS;
+		__builtin_memset(&nv, 0, sizeof(nv));
+		nv.conns = 1;
+		nv.last_seen_ns = bpf_ktime_get_ns();
+		bpf_map_update_elem(&flows, &key, &nv, BPF_NOEXIST);
+		vp = bpf_map_lookup_elem(&flows, &key);
+		if (!vp)
+			return TCX_PASS;
+	}
 	if (ingress)
 		__sync_fetch_and_add(&vp->bytes_rx, len);
 	else

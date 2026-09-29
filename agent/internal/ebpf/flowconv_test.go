@@ -87,6 +87,27 @@ func TestFlowToNetmonRejectsUnknownFamily(t *testing.T) {
 	}
 }
 
+func TestFlowToNetmonUDP(t *testing.T) {
+	k := FlowKey{Family: 2, Proto: 17, Sport: 45678, Dport: 53}
+	k.Saddr[0], k.Saddr[1], k.Saddr[2], k.Saddr[3] = 10, 244, 0, 44
+	k.Daddr[0], k.Daddr[1], k.Daddr[2], k.Daddr[3] = 10, 96, 0, 10
+	// TCX-created UDP keys carry no owner: pid/comm/cgroup stay zero.
+	v := FlowVal{Conns: 1, BytesTx: 70, BytesRx: 120}
+	f, ok := flowToNetmon(k, v)
+	if !ok {
+		t.Fatal("udp flow rejected")
+	}
+	if f.Protocol != "UDP" {
+		t.Fatalf("proto = %q, want UDP", f.Protocol)
+	}
+	if f.Process != "(0)" {
+		t.Fatalf("process = %q, want (0) for ownerless flow", f.Process)
+	}
+	if f.CgroupID != 0 {
+		t.Fatalf("cgroup = %d, want 0", f.CgroupID)
+	}
+}
+
 func TestFormatProcessTruncatesAtNul(t *testing.T) {
 	var comm [16]byte
 	copy(comm[:], "nginx\x00garbage")

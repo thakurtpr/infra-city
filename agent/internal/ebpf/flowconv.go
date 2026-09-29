@@ -39,6 +39,7 @@ type FlowVal struct {
 // IP protocol / address family numbers reported by the probe.
 const (
 	protoTCP = 6
+	protoUDP = 17
 	familyV4 = 2
 	familyV6 = 10
 )
@@ -76,8 +77,11 @@ func flowToNetmon(k FlowKey, v FlowVal) (f netmon.Flow, ok bool) {
 		return netmon.Flow{}, false
 	}
 	proto := fmt.Sprintf("IPPROTO-%d", k.Proto)
-	if k.Proto == protoTCP {
+	switch k.Proto {
+	case protoTCP:
 		proto = "TCP"
+	case protoUDP:
+		proto = "UDP"
 	}
 	return netmon.Flow{
 		SrcIP: src.String(), DstIP: dst.String(),
