@@ -100,14 +100,19 @@ export default function App() {
 
   return (
     <div style={{ position: 'relative', height: '100%' }}>
-      <CityScene nodes={nodes} edges={edges} selected={selected} blast={blast} mode={mode} onSelect={inspect} flyTo={flyTo} />
+      {/* 3D city is clickable (selects resources into the inspector) but not
+          keyboard-navigable: search, command center, and inspector panels
+          expose the same data as DOM for assistive tech. */}
+      <div role="application" aria-label={`3D infrastructure city: ${nodes.length} resources, ${edges.length} connections. Click a building to inspect it, or use search.`}>
+        <CityScene nodes={nodes} edges={edges} selected={selected} blast={blast} mode={mode} onSelect={inspect} flyTo={flyTo} />
+      </div>
 
       {/* top bar: search + modes */}
       <div style={bar}>
         <strong style={{ letterSpacing: 1 }}>INFRACITY</strong>
         <form onSubmit={search} style={{ display: 'flex', gap: 8 }}>
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="search: payments, svc:checkout, ns:payments…"
-            style={input} />
+            aria-label="Search infrastructure" style={input} />
         </form>
         <div style={{ display: 'flex', gap: 6 }}>
           {(['live', 'heatmap', 'security', 'cost'] as CityMode[]).map((m) => (
@@ -139,7 +144,7 @@ export default function App() {
       {/* inspector */}
       {selNode && (
         <div style={inspector}>
-          <button onClick={() => inspect(null)} style={btn}>✕</button>
+          <button onClick={() => inspect(null)} style={btn} aria-label="Close inspector">✕</button>
           <h3 style={{ margin: '4px 0' }}>{selNode.name}</h3>
           <div style={{ opacity: 0.7, fontSize: 12 }}>{selNode.type} · {selNode.namespace ?? 'cluster-scoped'}</div>
           {selNode.metrics && (
@@ -167,7 +172,7 @@ export default function App() {
       {/* explorer: time travel + path + changes + dependencies */}
       <div style={explorer}>
         <div style={h}>TIME TRAVEL {viewingSnap && <button onClick={() => viewSnapshot('')} style={btn}>← live</button>}</div>
-        <select value={viewingSnap ?? ''} onChange={(e) => viewSnapshot(e.target.value)} style={inputSm}>
+        <select value={viewingSnap ?? ''} onChange={(e) => viewSnapshot(e.target.value)} style={inputSm} aria-label="View snapshot">
           <option value="">live graph</option>
           {snaps.map((s) => (
             <option key={s.id} value={s.id}>{new Date(s.timestamp).toLocaleTimeString()} · {s.label ?? 'snapshot'}</option>
@@ -175,9 +180,9 @@ export default function App() {
         </select>
         <div style={h}>PATH EXPLORER</div>
         <form onSubmit={findPath} style={{ display: 'flex', gap: 4 }}>
-          <input value={pathFrom} onChange={(e) => setPathFrom(e.target.value)} placeholder="from node id" style={inputSm} />
-          <input value={pathTo} onChange={(e) => setPathTo(e.target.value)} placeholder="to node id" style={inputSm} />
-          <button type="submit" style={btn}>→</button>
+          <input value={pathFrom} onChange={(e) => setPathFrom(e.target.value)} placeholder="from node id" aria-label="Path from node" style={inputSm} />
+          <input value={pathTo} onChange={(e) => setPathTo(e.target.value)} placeholder="to node id" aria-label="Path to node" style={inputSm} />
+          <button type="submit" style={btn} aria-label="Find path">→</button>
         </form>
         {pathErr && <div style={{ fontSize: 11, color: '#ff6b6b' }}>{pathErr}</div>}
         {pathRes && <div style={{ fontSize: 11, opacity: 0.9 }}>{pathRes.map((p) => p.split('/').pop()).join(' → ')}</div>}
