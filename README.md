@@ -17,6 +17,16 @@ make dev        # backend demo city :8080 + UI :5173
 
 ## Real cluster
 
+One script, any kubectl-connected cluster (kind/minikube/k3d load images
+directly; remote clusters need `REGISTRY=...`):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/thakurtpr/infra-city/main/install.sh | bash
+# EBPF=1 DEMO=1 NAMESPACE=infra bash install.sh  # full-fidelity + demo town
+```
+
+Or step by step:
+
 ```bash
 helm install infracity helm/infracity --set clusterId=production
 kubectl port-forward svc/infracity-ui 8080:80  # http://localhost:8080
