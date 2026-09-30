@@ -161,7 +161,9 @@ log "verifying"
 kubectl rollout status "daemonset/$RELEASE-agent" -n "$NAMESPACE" --timeout=180s >/dev/null
 kubectl rollout status "deploy/$RELEASE-backend" -n "$NAMESPACE" --timeout=180s >/dev/null
 EBPF_LINE="$(kubectl logs "daemonset/$RELEASE-agent" -n "$NAMESPACE" 2>/dev/null | grep -a "network observer ready" | tail -1 || true)"
-log "agent: $(echo "$EBPF_LINE" | grep -ao 'ebpf=[a-z]*' || echo 'starting…')"
+# zerolog colors survive pipes (reset sits between key and value), so strip
+# ANSI escapes before matching ($'' quoting is portable bash, BSD+GNU sed).
+log "agent: $(echo "$EBPF_LINE" | sed $'s/\033\[[0-9;]*m//g' | grep -ao 'ebpf=\(true\|false\)' || echo 'starting…')"
 
 cat <<EOF
 
