@@ -10,19 +10,19 @@ COPY . .
 ARG TAGS=""
 RUN CGO_ENABLED=0 go build -o /out/backend ./backend/cmd && CGO_ENABLED=0 go build -tags "$TAGS" -o /out/agent ./agent/cmd
 
-FROM gcr.io/distroless/static:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3 AS backend
+FROM gcr.io/distroless/static:nonroot@sha256:18f4cc26c9ffa7f20a359298be7deadac5c607c8e03a02b8119f1a5fc2f82c99 AS backend
 COPY --from=build /out/backend /backend
 EXPOSE 8080
 ENTRYPOINT ["/backend"]
 
-FROM gcr.io/distroless/static:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3 AS agent
+FROM gcr.io/distroless/static:nonroot@sha256:18f4cc26c9ffa7f20a359298be7deadac5c607c8e03a02b8119f1a5fc2f82c99 AS agent
 COPY --from=build /out/agent /agent
 EXPOSE 8081
 ENTRYPOINT ["/agent"]
 
 # Root variant for the privileged eBPF path (needs CAP_BPF as uid 0).
 # Build with TAGS=ebpf_full (after `make ebpf`): the same /out/agent binary.
-FROM gcr.io/distroless/static@sha256:58133991db06659feaabe0f4e97a35cebf15ef4ea08f8a4c6d2ee5f75e4aa6a0 AS agent-ebpf
+FROM gcr.io/distroless/static@sha256:15f8637509792e05b97d83451b0b6ccfa4abd548f997e406ac1e72c87fe1fa78 AS agent-ebpf
 COPY --from=build /out/agent /agent
 EXPOSE 8081
 ENTRYPOINT ["/agent"]
